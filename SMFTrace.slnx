@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SMFTrace.Core/SMFTrace.Core.csproj" />
+    <Project Path="src/SMFTrace.MidiInterop/SMFTrace.MidiInterop.csproj" />
+    <Project Path="src/SMFTrace.Wpf/SMFTrace.Wpf.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SMFTrace.Core.Tests/SMFTrace.Core.Tests.csproj" />
+    <Project Path="tests/SMFTrace.MidiInterop.Tests/SMFTrace.MidiInterop.Tests.csproj" />
+    <Project Path="tests/SMFTrace.Wpf.Tests/SMFTrace.Wpf.Tests.csproj" />
+  </Folder>
+</Solution>

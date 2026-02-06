@@ -1,0 +1,519 @@
+using System.Diagnostics;
+using Melanchall.DryWetMidi.Interaction;
+using SMFTrace.Core.Configuration;
+using SMFTrace.Core.Models;
+
+namespace SMFTrace.Core.Sequencer;
+
+/// <summary>
+/// Interface for MIDI output operations used by the sequencer.
+/// </summary>
+public interface ISequencerOutput
+{
+    void SendShortMessage(byte status, byte data1, byte data2);
+#pragma warning disable CA1711 // SysEx is an industry-standard term
+    void SendSysEx(ReadOnlySpan<byte> payload);
+#pragma warning restore CA1711
+    void AllNotesOff();
+}
+
+/// <summary>
+/// High-precision MIDI sequencer engine with transport controls and seek support.
+/// </summary>
+public sealed class SequencerEngine : IDisposable
+{
+    private readonly MidiFileData _fileData;
+    private readonly StateSnapshotBuilder _snapshotBuilder;
+    private readonly PlaybackOptions _options;
+    private readonly object _lock = new();
+
+    private ISequencerOutput? _output;
+    private CancellationTokenSource? _playbackCts;
+    private Task? _playbackTask;
+
+    private int _currentEventIndex;
+    private long _currentTick;
+    private TimeSpan _currentTime;
+    private PlaybackState _state = PlaybackState.Stopped;
+    private PlaybackState _stateBeforeScrub = PlaybackState.Stopped;
+
+    /// <summary>
+    /// Raised when the playback position changes.
+    /// </summary>
+    public event EventHandler<PositionChangedEventArgs>? PositionChanged;
+
+    /// <summary>
+    /// Raised when the playback state changes.
+    /// </summary>
+    public event EventHandler<PlaybackStateChangedEventArgs>? StateChanged;
+
+    /// <summary>
+    /// Raised when an event is dispatched to the output.
+    /// </summary>
+    public event EventHandler<EventDispatchedEventArgs>? EventDispatched;
+
+    /// <summary>
+    /// Creates a new sequencer engine for the given file data.
+    /// </summary>
+    public SequencerEngine(MidiFileData fileData, PlaybackOptions? options = null)
+    {
+        _fileData = fileData ?? throw new ArgumentNullException(nameof(fileData));
+        _options = options ?? new PlaybackOptions();
+        _snapshotBuilder = new StateSnapshotBuilder(fileData.Events);
+    }
+
+    /// <summary>Current playback state.</summary>
+    public PlaybackState State
+    {
+        get { lock (_lock) return _state; }
+    }
+
+    /// <summary>Current position in ticks.</summary>
+    public long CurrentTick
+    {
+        get { lock (_lock) return _currentTick; }
+    }
+
+    /// <summary>Current position in time.</summary>
+    public TimeSpan CurrentTime
+    {
+        get { lock (_lock) return _currentTime; }
+    }
+
+    /// <summary>Total duration of the file.</summary>
+    public TimeSpan Duration => _fileData.Duration;
+
+    /// <summary>Total ticks in the file.</summary>
+    public long TotalTicks => _fileData.TotalTicks;
+
+    /// <summary>
+    /// Sets the MIDI output device.
+    /// </summary>
+    public void SetOutput(ISequencerOutput? output)
+    {
+        lock (_lock)
+        {
+            _output = output;
+        }
+    }
+
+    /// <summary>
+    /// Starts or resumes playback.
+    /// </summary>
+    public void Play()
+    {
+        lock (_lock)
+        {
+            if (_state == PlaybackState.Playing)
+            {
+                return;
+            }
+
+            if (_output == null)
+            {
+                throw new InvalidOperationException("No output device set");
+            }
+
+            SetState(PlaybackState.Playing);
+            StartPlaybackLoop();
+        }
+    }
+
+    /// <summary>
+    /// Pauses playback at the current position.
+    /// Sends All Notes Off to prevent stuck notes.
+    /// </summary>
+    public void Pause()
+    {
+        lock (_lock)
+        {
+            if (_state != PlaybackState.Playing)
+            {
+                return;
+            }
+
+            StopPlaybackLoop();
+            _output?.AllNotesOff();
+            SetState(PlaybackState.Paused);
+        }
+    }
+
+    /// <summary>
+    /// Stops playback, sends All Notes Off, and resets position to start.
+    /// </summary>
+    public void Stop()
+    {
+        lock (_lock)
+        {
+            StopPlaybackLoop();
+            _output?.AllNotesOff();
+            _currentEventIndex = 0;
+            _currentTick = 0;
+            _currentTime = TimeSpan.Zero;
+            SetState(PlaybackState.Stopped);
+            RaisePositionChanged();
+        }
+    }
+
+    /// <summary>
+    /// Begins silent scrubbing (no MIDI output during drag).
+    /// </summary>
+    public void BeginScrub()
+    {
+        lock (_lock)
+        {
+            _stateBeforeScrub = _state;
+            if (_state == PlaybackState.Playing)
+            {
+                StopPlaybackLoop();
+            }
+
+            SetState(PlaybackState.Scrubbing);
+        }
+    }
+
+    /// <summary>
+    /// Updates the scrub position (silent, no output).
+    /// </summary>
+    /// <param name="time">The time to scrub to.</param>
+    public void Scrub(TimeSpan time)
+    {
+        lock (_lock)
+        {
+            if (_state != PlaybackState.Scrubbing)
+            {
+                return;
+            }
+
+            // Clamp to valid range
+            time = time < TimeSpan.Zero ? TimeSpan.Zero : time;
+            time = time > _fileData.Duration ? _fileData.Duration : time;
+
+            // Convert time to tick
+            var metric = new MetricTimeSpan(time);
+            var tick = TimeConverter.ConvertFrom(metric, _fileData.TempoMap);
+
+            _currentTime = time;
+            _currentTick = tick;
+            _currentEventIndex = _snapshotBuilder.GetResumeEventIndex(tick);
+
+            RaisePositionChanged();
+        }
+    }
+
+    /// <summary>
+    /// Ends scrubbing: sends All Notes Off, rebuilds state, emits to device, and resumes if was playing.
+    /// </summary>
+    public void EndScrub()
+    {
+        lock (_lock)
+        {
+            if (_state != PlaybackState.Scrubbing)
+            {
+                return;
+            }
+
+            // 1. All Notes Off
+            _output?.AllNotesOff();
+
+            // 2. Rebuild channel state at current tick
+            var channelStates = _snapshotBuilder.RebuildStateAtTick(_currentTick);
+
+            // 3. Emit bank/program/controller state to device
+            EmitStateToDevice(channelStates);
+
+            // 4. Update event index for resumption
+            _currentEventIndex = _snapshotBuilder.GetResumeEventIndex(_currentTick);
+
+            // 5. Resume playback if was playing before scrub
+            if (_stateBeforeScrub == PlaybackState.Playing)
+            {
+                SetState(PlaybackState.Playing);
+                StartPlaybackLoop();
+            }
+            else
+            {
+                SetState(_stateBeforeScrub == PlaybackState.Stopped ? PlaybackState.Stopped : PlaybackState.Paused);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Seeks to a specific time position.
+    /// If playing, playback will continue from the new position.
+    /// </summary>
+    public void SeekTo(TimeSpan time)
+    {
+        BeginScrub();
+        Scrub(time);
+        EndScrub();
+    }
+
+    private void StartPlaybackLoop()
+    {
+        _playbackCts = new CancellationTokenSource();
+        var token = _playbackCts.Token;
+
+        _playbackTask = Task.Run(() => PlaybackLoop(token), token);
+    }
+
+    private void StopPlaybackLoop()
+    {
+        _playbackCts?.Cancel();
+        try
+        {
+            _playbackTask?.Wait(100);
+        }
+        catch (AggregateException)
+        {
+            // Expected on cancellation
+        }
+
+        _playbackCts?.Dispose();
+        _playbackCts = null;
+        _playbackTask = null;
+    }
+
+    private void PlaybackLoop(CancellationToken token)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var startTime = _currentTime;
+
+        while (!token.IsCancellationRequested)
+        {
+            MidiEventBase? nextEvent;
+            TimeSpan eventTime;
+            int eventIndex;
+
+            lock (_lock)
+            {
+                if (_currentEventIndex >= _fileData.Events.Count)
+                {
+                    // End of file
+                    Stop();
+                    return;
+                }
+
+                nextEvent = _fileData.Events[_currentEventIndex];
+                eventTime = nextEvent.Time;
+                eventIndex = _currentEventIndex;
+
+                // Update current time based on elapsed
+                _currentTime = startTime + stopwatch.Elapsed;
+                _currentTick = TimeToTick(_currentTime);
+            }
+
+            // Wait until it's time to dispatch this event
+            var timeUntilEvent = eventTime - _currentTime;
+            if (timeUntilEvent > TimeSpan.Zero)
+            {
+                // Use spin-wait for sub-millisecond precision
+                if (timeUntilEvent.TotalMilliseconds > 2)
+                {
+                    Thread.Sleep((int)(timeUntilEvent.TotalMilliseconds - 1));
+                }
+
+                // Spin-wait for the remaining time
+                var targetTime = _currentTime + timeUntilEvent;
+                while (_currentTime < targetTime && !token.IsCancellationRequested)
+                {
+                    lock (_lock)
+                    {
+                        _currentTime = startTime + stopwatch.Elapsed;
+                    }
+
+                    Thread.SpinWait(10);
+                }
+
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+            }
+
+            // Dispatch the event
+            lock (_lock)
+            {
+                if (_currentEventIndex == eventIndex)
+                {
+                    DispatchEvent(nextEvent);
+                    _currentEventIndex++;
+                    _currentTick = nextEvent.AbsoluteTick;
+                    _currentTime = nextEvent.Time;
+                }
+            }
+
+            RaisePositionChanged();
+        }
+    }
+
+    private void DispatchEvent(MidiEventBase evt)
+    {
+        if (_output == null)
+        {
+            return;
+        }
+
+        switch (evt)
+        {
+            case NoteOnEvent noteOn:
+                _output.SendShortMessage(
+                    (byte)(0x90 | noteOn.Channel),
+                    noteOn.NoteNumber,
+                    noteOn.Velocity);
+                break;
+
+            case NoteOffEvent noteOff:
+                _output.SendShortMessage(
+                    (byte)(0x80 | noteOff.Channel),
+                    noteOff.NoteNumber,
+                    noteOff.Velocity);
+                break;
+
+            case ControlChangeEvent cc:
+                _output.SendShortMessage(
+                    (byte)(0xB0 | cc.Channel),
+                    cc.ControllerNumber,
+                    cc.Value);
+                break;
+
+            case ProgramChangeEvent pc:
+                _output.SendShortMessage(
+                    (byte)(0xC0 | pc.Channel),
+                    pc.ProgramNumber,
+                    0);
+                break;
+
+            case PitchBendEvent pb:
+                _output.SendShortMessage(
+                    (byte)(0xE0 | pb.Channel),
+                    (byte)(pb.Value & 0x7F),
+                    (byte)((pb.Value >> 7) & 0x7F));
+                break;
+
+            case ChannelPressureEvent cp:
+                _output.SendShortMessage(
+                    (byte)(0xD0 | cp.Channel),
+                    cp.Pressure,
+                    0);
+                break;
+
+            case PolyPressureEvent pp:
+                _output.SendShortMessage(
+                    (byte)(0xA0 | pp.Channel),
+                    pp.NoteNumber,
+                    pp.Pressure);
+                break;
+
+            case SysExEvent sysex:
+                if (!_options.DisableSysExOutput)
+                {
+                    _output.SendSysEx(sysex.Data);
+                }
+                break;
+        }
+
+        EventDispatched?.Invoke(this, new EventDispatchedEventArgs(evt));
+    }
+
+    private void EmitStateToDevice(ChannelState[] states)
+    {
+        if (_output == null)
+        {
+            return;
+        }
+
+        for (byte channel = 0; channel < 16; channel++)
+        {
+            var state = states[channel];
+
+            if (state.HasProgramChange)
+            {
+                // Send Bank Select MSB (CC0)
+                _output.SendShortMessage((byte)(0xB0 | channel), 0, state.BankMsb);
+
+                // Send Bank Select LSB (CC32)
+                _output.SendShortMessage((byte)(0xB0 | channel), 32, state.BankLsb);
+
+                // Send Program Change
+                _output.SendShortMessage((byte)(0xC0 | channel), state.Program, 0);
+            }
+
+            // Send all controller values
+            foreach (var (cc, value) in state.Controllers)
+            {
+                _output.SendShortMessage((byte)(0xB0 | channel), cc, value);
+            }
+        }
+    }
+
+    private long TimeToTick(TimeSpan time)
+    {
+        var metric = new MetricTimeSpan(time);
+        return TimeConverter.ConvertFrom(metric, _fileData.TempoMap);
+    }
+
+    private void SetState(PlaybackState newState)
+    {
+        var oldState = _state;
+        _state = newState;
+        if (oldState != newState)
+        {
+            StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs(oldState, newState));
+        }
+    }
+
+    private void RaisePositionChanged()
+    {
+        PositionChanged?.Invoke(this, new PositionChangedEventArgs(_currentTick, _currentTime));
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        StopPlaybackLoop();
+    }
+}
+
+/// <summary>
+/// Event arguments for position changes.
+/// </summary>
+public sealed class PositionChangedEventArgs : EventArgs
+{
+    public long Tick { get; }
+    public TimeSpan Time { get; }
+
+    public PositionChangedEventArgs(long tick, TimeSpan time)
+    {
+        Tick = tick;
+        Time = time;
+    }
+}
+
+/// <summary>
+/// Event arguments for state changes.
+/// </summary>
+public sealed class PlaybackStateChangedEventArgs : EventArgs
+{
+    public PlaybackState OldState { get; }
+    public PlaybackState NewState { get; }
+
+    public PlaybackStateChangedEventArgs(PlaybackState oldState, PlaybackState newState)
+    {
+        OldState = oldState;
+        NewState = newState;
+    }
+}
+
+/// <summary>
+/// Event arguments for event dispatch.
+/// </summary>
+public sealed class EventDispatchedEventArgs : EventArgs
+{
+    public MidiEventBase Event { get; }
+
+    public EventDispatchedEventArgs(MidiEventBase evt)
+    {
+        Event = evt;
+    }
+}
