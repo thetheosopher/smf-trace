@@ -51,6 +51,7 @@
                 <Separator/>
                 <CheckBox Content="Tempo" IsChecked="{Binding ShowTempo}" Foreground="White" VerticalAlignment="Center" Margin="4,0"/>
                 <CheckBox Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Foreground="White" VerticalAlignment="Center" Margin="4,0"/>
+                <CheckBox Content="Overlay" IsChecked="{Binding OverlayMode}" Foreground="White" VerticalAlignment="Center" Margin="4,0" ToolTip="Overlay all tracks with distinct colors"/>
                 <Separator/>
                 <TextBlock Text="FPS:" VerticalAlignment="Center" Foreground="White" Margin="4,0"/>
                 <ComboBox SelectedItem="{Binding TargetFps}" Width="50" Margin="4,0">
@@ -65,12 +66,15 @@
         <!-- Main Content -->
         <TabControl Grid.Row="1" Background="#252526">
             <TabItem Header="Piano Roll">
-                <controls:PianoRollPanel x:Name="PianoRoll"
-                                         CurrentTime="{Binding CurrentTime}"
-                                         TotalDuration="{Binding TotalDuration}"
-                                         WindowSeconds="{Binding WindowSeconds, Mode=TwoWay}"
-                                         ShowTempo="{Binding ShowTempo}"
-                                         ShowBarsBeatsGrid="{Binding ShowBarsBeatsGrid}"/>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <controls:PianoRollPanel x:Name="PianoRoll"
+                                             CurrentTime="{Binding CurrentTime}"
+                                             TotalDuration="{Binding TotalDuration}"
+                                             WindowSeconds="{Binding WindowSeconds, Mode=TwoWay}"
+                                             ShowTempo="{Binding ShowTempo}"
+                                             ShowBarsBeatsGrid="{Binding ShowBarsBeatsGrid}"
+                                             OverlayMode="{Binding OverlayMode}"/>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Diagnostics">
                 <views:DiagnosticsView x:Name="DiagnosticsView"

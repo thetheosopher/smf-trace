@@ -51,6 +51,13 @@ public class PianoRollPanel : FrameworkElement
             typeof(PianoRollPanel),
             new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty OverlayModeProperty =
+        DependencyProperty.Register(
+            nameof(OverlayMode),
+            typeof(bool),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnOverlayModeChanged));
+
     public TimeSpan CurrentTime
     {
         get => (TimeSpan)GetValue(CurrentTimeProperty);
@@ -81,9 +88,23 @@ public class PianoRollPanel : FrameworkElement
         set => SetValue(ShowBarsBeatsGridProperty, value);
     }
 
+    public bool OverlayMode
+    {
+        get => (bool)GetValue(OverlayModeProperty);
+        set => SetValue(OverlayModeProperty, value);
+    }
+
     private static void OnWindowSecondsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         // Trigger re-render
+    }
+
+    private static void OnOverlayModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel.RebuildLanes();
+        }
     }
 
 #pragma warning disable CA1859 // CoerceValueCallback must return object
@@ -110,6 +131,7 @@ public class PianoRollPanel : FrameworkElement
     private readonly PianoRollSettings _settings = new();
     private List<LaneLayout> _lanes = [];
     private List<PairedNote> _allNotes = [];
+    private IReadOnlyList<TrackInfo> _tracks = [];
 
     // Cached resources
     private static readonly Pen PlayheadPen;
@@ -184,6 +206,55 @@ public class PianoRollPanel : FrameworkElement
 
     #endregion
 
+    #region Layout
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        // In overlay mode, use available height
+        if (OverlayMode)
+        {
+            return new Size(
+                double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width,
+                double.IsInfinity(availableSize.Height) ? 600 : availableSize.Height);
+        }
+
+        // Calculate total height needed for all lanes
+        var totalHeight = CalculateTotalLanesHeight();
+
+        // Use at least the available height, or more if content requires
+        var height = double.IsInfinity(availableSize.Height)
+            ? Math.Max(totalHeight, 600)
+            : Math.Max(totalHeight, availableSize.Height);
+
+        return new Size(
+            double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width,
+            height);
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        // Update overlay lane height when size changes
+        if (OverlayMode && _lanes.Count > 0)
+        {
+            _lanes[0].Height = finalSize.Height;
+        }
+
+        return finalSize;
+    }
+
+    private double CalculateTotalLanesHeight()
+    {
+        if (_lanes.Count == 0)
+        {
+            return 0;
+        }
+
+        var laneHeight = _settings.CalculateLaneHeight();
+        return _lanes.Count * laneHeight + (_lanes.Count - 1) * PianoRollSettings.LaneGap;
+    }
+
+    #endregion
+
     #region Public Methods
 
     /// <summary>
@@ -192,34 +263,60 @@ public class PianoRollPanel : FrameworkElement
     public void LoadNotes(IReadOnlyList<MidiEventBase> events, IReadOnlyList<TrackInfo> tracks)
     {
         _allNotes = NotePairer.PairNotes(events);
-        var notesByLane = NotePairer.GroupByLane(_allNotes);
+        _tracks = tracks;
+        RebuildLanes();
+    }
 
+    /// <summary>
+    /// Rebuilds lane layouts based on current mode (overlay vs lane).
+    /// </summary>
+    private void RebuildLanes()
+    {
         _lanes.Clear();
 
-        // Create lanes in order
-        var sortedLanes = notesByLane.Keys.OrderBy(l => l.TrackIndex).ThenBy(l => l.Channel).ToList();
-
-        var yOffset = 0.0;
-        var laneHeight = _settings.CalculateLaneHeight();
-
-        foreach (var laneId in sortedLanes)
+        if (OverlayMode)
         {
-            var trackName = laneId.TrackIndex < tracks.Count ? tracks[laneId.TrackIndex].Name : null;
-
+            // Single lane with all notes overlaid
             var layout = new LaneLayout
             {
-                Id = laneId,
-                TrackName = trackName,
-                YOffset = yOffset,
-                Height = laneHeight
+                Id = new LaneId(0, 0),
+                TrackName = "All Tracks (Overlay)",
+                YOffset = 0,
+                Height = ActualHeight > 0 ? ActualHeight : 600
             };
 
-            layout.Notes.AddRange(notesByLane[laneId]);
+            layout.Notes.AddRange(_allNotes);
             _lanes.Add(layout);
+        }
+        else
+        {
+            // Separate lanes by (track, channel)
+            var notesByLane = NotePairer.GroupByLane(_allNotes);
+            var sortedLanes = notesByLane.Keys.OrderBy(l => l.TrackIndex).ThenBy(l => l.Channel).ToList();
 
-            yOffset += laneHeight + PianoRollSettings.LaneGap;
+            var yOffset = 0.0;
+            var laneHeight = _settings.CalculateLaneHeight();
+
+            foreach (var laneId in sortedLanes)
+            {
+                var trackName = laneId.TrackIndex < _tracks.Count ? _tracks[laneId.TrackIndex].Name : null;
+
+                var layout = new LaneLayout
+                {
+                    Id = laneId,
+                    TrackName = trackName,
+                    YOffset = yOffset,
+                    Height = laneHeight
+                };
+
+                layout.Notes.AddRange(notesByLane[laneId]);
+                _lanes.Add(layout);
+
+                yOffset += laneHeight + PianoRollSettings.LaneGap;
+            }
         }
 
+        InvalidateMeasure();
         InvalidateVisual();
     }
 
@@ -368,6 +465,7 @@ public class PianoRollPanel : FrameworkElement
     {
         var pitchCount = _settings.PitchCount;
         var rowHeight = lane.Height / pitchCount;
+        var useTrackColors = OverlayMode;
 
         foreach (var note in lane.Notes)
         {
@@ -395,7 +493,11 @@ public class PianoRollPanel : FrameworkElement
             var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
 
             var rect = new Rect(x1, y + 1, x2 - x1, rowHeight - 2);
-            var brush = VelocityColorMapper.GetBrush(note.Velocity);
+
+            // Use track colors in overlay mode, velocity colors otherwise
+            var brush = useTrackColors
+                ? TrackColorMapper.GetBrush(note.TrackIndex, note.Velocity)
+                : VelocityColorMapper.GetBrush(note.Velocity);
 
             dc.DrawRectangle(brush, null, rect);
         }
@@ -417,6 +519,12 @@ public class PianoRollPanel : FrameworkElement
 
         // Background
         dc.DrawRectangle(LaneHeaderBrush, null, new Rect(0, 0, PianoRollSettings.LaneHeaderWidth, ActualHeight));
+
+        if (OverlayMode)
+        {
+            RenderOverlayTrackList(dc);
+            return;
+        }
 
         foreach (var lane in _lanes)
         {
@@ -463,6 +571,80 @@ public class PianoRollPanel : FrameworkElement
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
             dc.DrawText(instrumentText, new Point(x, y));
+        }
+    }
+
+    private void RenderOverlayTrackList(DrawingContext dc)
+    {
+        // Get unique tracks from all notes
+        var trackInfos = _allNotes
+            .Select(n => n.TrackIndex)
+            .Distinct()
+            .OrderBy(t => t)
+            .ToList();
+
+        var y = 8.0;
+        var x = 4.0;
+        const double lineHeight = 16.0;
+        const double colorBoxSize = 10.0;
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+
+        // Title
+        var titleText = new FormattedText(
+            "Tracks",
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            LabelTypeface,
+            11,
+            Brushes.White,
+            dpi);
+
+        dc.DrawText(titleText, new Point(x, y));
+        y += lineHeight + 4;
+
+        // Draw each track with its color
+        foreach (var trackIndex in trackInfos)
+        {
+            if (y + lineHeight > ActualHeight - 4)
+            {
+                // Show "..." if we run out of space
+                var moreText = new FormattedText(
+                    $"... +{trackInfos.Count - trackInfos.IndexOf(trackIndex)} more",
+                    System.Globalization.CultureInfo.CurrentCulture,
+                    FlowDirection.LeftToRight,
+                    LabelTypeface,
+                    9,
+                    Brushes.Gray,
+                    dpi);
+                dc.DrawText(moreText, new Point(x, y));
+                break;
+            }
+
+            // Color indicator box
+            var trackBrush = TrackColorMapper.GetBrush(trackIndex);
+            var colorRect = new Rect(x, y + 2, colorBoxSize, colorBoxSize);
+            dc.DrawRectangle(trackBrush, null, colorRect);
+
+            // Track name or index
+            var trackName = trackIndex < _tracks.Count && !string.IsNullOrEmpty(_tracks[trackIndex].Name)
+                ? _tracks[trackIndex].Name
+                : $"Track {trackIndex}";
+
+            var trackText = new FormattedText(
+                trackName,
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                LabelTypeface,
+                10,
+                Brushes.White,
+                dpi);
+
+            // Clip text if too long
+            trackText.MaxTextWidth = PianoRollSettings.LaneHeaderWidth - x - colorBoxSize - 8;
+            trackText.Trimming = TextTrimming.CharacterEllipsis;
+
+            dc.DrawText(trackText, new Point(x + colorBoxSize + 4, y));
+            y += lineHeight;
         }
     }
 

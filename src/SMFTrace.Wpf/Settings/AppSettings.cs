@@ -51,6 +51,11 @@ public sealed class AppSettings
     public bool ShowBarsBeatsGrid { get; set; } = true;
 
     /// <summary>
+    /// Whether overlay mode is enabled (all tracks on single lane with track colors).
+    /// </summary>
+    public bool OverlayMode { get; set; }
+
+    /// <summary>
     /// Whether SysEx output is disabled.
     /// </summary>
     public bool DisableSysExOutput { get; set; }

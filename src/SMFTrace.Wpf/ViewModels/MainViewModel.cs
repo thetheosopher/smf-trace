@@ -29,6 +29,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private double _windowSeconds = 30.0;
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
+    private bool _overlayMode;
     private bool _disableSysExOutput;
     private int _targetFps = 60;
     private PlaybackState _playbackState = PlaybackState.Stopped;
@@ -79,6 +80,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _windowSeconds = s.PianoRollWindowSeconds;
         _showTempo = s.ShowTempo;
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
+        _overlayMode = s.OverlayMode;
         _disableSysExOutput = s.DisableSysExOutput;
         _targetFps = s.RenderFps;
 
@@ -99,6 +101,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.PianoRollWindowSeconds = WindowSeconds;
         s.ShowTempo = ShowTempo;
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
+        s.OverlayMode = OverlayMode;
         s.DisableSysExOutput = DisableSysExOutput;
         s.RenderFps = TargetFps;
         s.LastDeviceName = SelectedDevice?.Name;
@@ -167,6 +170,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _showBarsBeatsGrid;
         set => SetField(ref _showBarsBeatsGrid, value);
+    }
+
+    public bool OverlayMode
+    {
+        get => _overlayMode;
+        set => SetField(ref _overlayMode, value);
     }
 
     public bool DisableSysExOutput
