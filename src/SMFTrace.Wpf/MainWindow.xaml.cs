@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using SMFTrace.Wpf.ViewModels;
 
 namespace SMFTrace.Wpf;
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
         StateChanged += OnStateChanged;
         SizeChanged += OnSizeChanged;
         LocationChanged += OnLocationChanged;
+        PreviewKeyDown += OnPreviewKeyDown;
     }
 
     private void ApplyWindowSettings()
@@ -132,5 +134,22 @@ public partial class MainWindow : Window
     private void SeekSlider_DragCompleted(object sender, DragCompletedEventArgs e)
     {
         _viewModel.EndSeek();
+    }
+
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Space)
+        {
+            // Toggle play/pause with spacebar
+            if (_viewModel.CanPause)
+            {
+                _viewModel.PauseCommand.Execute(null);
+            }
+            else if (_viewModel.CanPlay)
+            {
+                _viewModel.PlayCommand.Execute(null);
+            }
+            e.Handled = true;
+        }
     }
 }

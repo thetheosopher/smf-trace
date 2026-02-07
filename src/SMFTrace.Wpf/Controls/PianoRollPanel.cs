@@ -206,6 +206,7 @@ public class PianoRollPanel : FrameworkElement
     private TimeSpan _syncPosition; // Last known position from sequencer
     private bool _isSmoothScrolling;
     private TimeSpan _interpolatedTime; // Current interpolated position for rendering
+    private TimeSpan _lastRenderTime; // For frame rate throttling in non-overlay mode
 
     // Cached resources
     private static readonly Pen PlayheadPen;
@@ -297,6 +298,7 @@ public class PianoRollPanel : FrameworkElement
         _isSmoothScrolling = true;
         _syncPosition = CurrentTime;
         _interpolatedTime = CurrentTime;
+        _lastRenderTime = TimeSpan.Zero;
         _smoothScrollStopwatch.Restart();
         CompositionTarget.Rendering += OnCompositionTargetRendering;
     }
@@ -321,6 +323,17 @@ public class PianoRollPanel : FrameworkElement
         if (_interpolatedTime > TotalDuration)
         {
             _interpolatedTime = TotalDuration;
+        }
+
+        // Throttle to 30 FPS in non-overlay mode to reduce CPU usage with complex files
+        if (!OverlayMode)
+        {
+            var timeSinceLastRender = elapsed - _lastRenderTime;
+            if (timeSinceLastRender.TotalMilliseconds < 33.3) // ~30 FPS
+            {
+                return;
+            }
+            _lastRenderTime = elapsed;
         }
 
         // Trigger a render
