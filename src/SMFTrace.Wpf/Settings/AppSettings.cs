@@ -46,6 +46,11 @@ public sealed class AppSettings
     public bool ShowBarsBeatsGrid { get; set; } = true;
 
     /// <summary>
+    /// Whether note names are shown in the piano roll header.
+    /// </summary>
+    public bool ShowNoteNames { get; set; }
+
+    /// <summary>
     /// Whether overlay mode is enabled (all tracks on single lane with track colors).
     /// </summary>
     public bool OverlayMode { get; set; }

@@ -18,7 +18,7 @@ public class PianoRollPanel : FrameworkElement
             nameof(CurrentTime),
             typeof(TimeSpan),
             typeof(PianoRollPanel),
-            new FrameworkPropertyMetadata(TimeSpan.Zero, FrameworkPropertyMetadataOptions.AffectsRender, OnCurrentTimeChanged));
+            new FrameworkPropertyMetadata(TimeSpan.Zero, OnCurrentTimeChanged));
 
     public static readonly DependencyProperty IsPlayingProperty =
         DependencyProperty.Register(
@@ -66,6 +66,13 @@ public class PianoRollPanel : FrameworkElement
             typeof(PianoRollPanel),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnOverlayModeChanged));
 
+    public static readonly DependencyProperty ShowNoteNamesProperty =
+        DependencyProperty.Register(
+            nameof(ShowNoteNames),
+            typeof(bool),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnShowNoteNamesChanged));
+
     public TimeSpan CurrentTime
     {
         get => (TimeSpan)GetValue(CurrentTimeProperty);
@@ -108,6 +115,12 @@ public class PianoRollPanel : FrameworkElement
         set => SetValue(OverlayModeProperty, value);
     }
 
+    public bool ShowNoteNames
+    {
+        get => (bool)GetValue(ShowNoteNamesProperty);
+        set => SetValue(ShowNoteNamesProperty, value);
+    }
+
     private static void OnWindowSecondsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         // Trigger re-render
@@ -117,7 +130,14 @@ public class PianoRollPanel : FrameworkElement
     {
         if (d is PianoRollPanel panel)
         {
-            panel.SyncPosition((TimeSpan)e.NewValue);
+            // During smooth scrolling, ignore external position updates -
+            // the interpolation handles rendering smoothly based on elapsed time.
+            // Only process updates when stopped/paused.
+            if (!panel._isSmoothScrolling)
+            {
+                panel._interpolatedTime = (TimeSpan)e.NewValue;
+                panel.InvalidateVisual();
+            }
         }
     }
 
@@ -141,6 +161,14 @@ public class PianoRollPanel : FrameworkElement
         if (d is PianoRollPanel panel)
         {
             panel.RebuildLanes();
+        }
+    }
+
+    private static void OnShowNoteNamesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel.InvalidateLaneHeaders();
         }
     }
 
@@ -261,17 +289,6 @@ public class PianoRollPanel : FrameworkElement
     /// Gets the effective time to use for rendering (interpolated when playing, actual when stopped).
     /// </summary>
     private TimeSpan RenderTime => _isSmoothScrolling ? _interpolatedTime : CurrentTime;
-
-    private void SyncPosition(TimeSpan newPosition)
-    {
-        _syncPosition = newPosition;
-        _smoothScrollStopwatch.Restart();
-
-        if (!_isSmoothScrolling)
-        {
-            _interpolatedTime = newPosition;
-        }
-    }
 
     private void StartSmoothScrolling()
     {
@@ -443,7 +460,27 @@ public class PianoRollPanel : FrameworkElement
     public void UpdateInstrumentNames(ChannelState[] channelStates)
     {
         _channelStates = channelStates;
-        ApplyInstrumentNames();
+
+        // Check if any instrument names actually changed
+        var anyChanged = false;
+        foreach (var lane in _lanes)
+        {
+            if (lane.Id.Channel < _channelStates.Length)
+            {
+                var newName = _channelStates[lane.Id.Channel].InstrumentDisplayName;
+                if (lane.InstrumentName != newName)
+                {
+                    lane.InstrumentName = newName;
+                    anyChanged = true;
+                }
+            }
+        }
+
+        // Only re-render lane headers if something changed
+        if (anyChanged && !_isSmoothScrolling)
+        {
+            InvalidateLaneHeaders();
+        }
     }
 
     private void ApplyInstrumentNames()
@@ -465,8 +502,17 @@ public class PianoRollPanel : FrameworkElement
     /// <param name="bpm">Tempo in beats per minute.</param>
     public void UpdateTempo(double bpm)
     {
+        // Only update if tempo changed significantly
+        if (Math.Abs(_currentTempo - bpm) < 0.01) return;
+
         _currentTempo = bpm;
-        InvalidateVisual();
+
+        // During smooth scrolling, OnRender will pick up the tempo change.
+        // When stopped, we need to trigger a render.
+        if (!_isSmoothScrolling)
+        {
+            InvalidateVisual();
+        }
     }
 
     /// <summary>
@@ -661,6 +707,12 @@ public class PianoRollPanel : FrameworkElement
         if (OverlayMode)
         {
             RenderOverlayTrackList(dc);
+
+            // Also render note names in overlay mode (using first lane or full height)
+            if (ShowNoteNames && _lanes.Count > 0)
+            {
+                RenderNoteNamesForLane(dc, _lanes[0]);
+            }
             return;
         }
 
@@ -709,7 +761,57 @@ public class PianoRollPanel : FrameworkElement
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
             dc.DrawText(instrumentText, new Point(x, y));
+
+            // Note names on the right side (if enabled)
+            if (ShowNoteNames)
+            {
+                RenderNoteNamesForLane(dc, lane);
+            }
         }
+    }
+
+    private void RenderNoteNamesForLane(DrawingContext dc, LaneLayout lane)
+    {
+        var pitchCount = _settings.PitchCount;
+        var rowHeight = lane.Height / pitchCount;
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var rightEdge = PianoRollSettings.LaneHeaderWidth - 2;
+
+        // Calculate font size to fit within row height (leave some padding)
+        var fontSize = Math.Max(6, Math.Min(rowHeight * 0.9, 10));
+
+        for (var pitch = _settings.PitchLow; pitch <= _settings.PitchHigh; pitch++)
+        {
+            var relPitch = pitch - _settings.PitchLow;
+            var noteY = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
+
+            // Use short note name format
+            var noteName = GetNoteNameShort(pitch);
+            var isOctave = pitch % 12 == 0;
+
+            var noteText = new FormattedText(
+                noteName,
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                LabelTypeface,
+                fontSize,
+                isOctave ? Brushes.White : Brushes.Gray,
+                dpi);
+
+            // Right-align the text, center vertically in row
+            var textX = rightEdge - noteText.Width;
+            var textY = noteY + (rowHeight - noteText.Height) / 2;
+
+            dc.DrawText(noteText, new Point(textX, textY));
+        }
+    }
+
+    private static string GetNoteNameShort(int midiNote)
+    {
+        var noteNames = new[] { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        var octave = (midiNote / 12) - 1;
+        var note = noteNames[midiNote % 12];
+        return $"{note}{octave}";
     }
 
     private void RenderOverlayTrackList(DrawingContext dc)

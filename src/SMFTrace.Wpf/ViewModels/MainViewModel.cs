@@ -29,6 +29,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private double _windowSeconds = 30.0;
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
+    private bool _showNoteNames;
     private bool _overlayMode;
     private PlaybackState _playbackState = PlaybackState.Stopped;
     private MidiDeviceInfo? _selectedDevice;
@@ -36,6 +37,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private ChannelState[] _channelStates = new ChannelState[16];
     private double _currentTempo = 120.0;
     private bool _isSeeking;
+    private DateTime _lastChannelStateUpdate;
 
     /// <summary>Diagnostics tab view model.</summary>
     public DiagnosticsViewModel Diagnostics { get; } = new();
@@ -80,6 +82,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _windowSeconds = s.PianoRollWindowSeconds;
         _showTempo = s.ShowTempo;
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
+        _showNoteNames = s.ShowNoteNames;
         _overlayMode = s.OverlayMode;
 
         // Apply diagnostics filter states
@@ -98,6 +101,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.PianoRollWindowSeconds = WindowSeconds;
         s.ShowTempo = ShowTempo;
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
+        s.ShowNoteNames = ShowNoteNames;
         s.OverlayMode = OverlayMode;
         s.LastDeviceName = SelectedDevice?.Name;
 
@@ -145,7 +149,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => TotalDuration.TotalSeconds > 0 ? CurrentTime.TotalSeconds / TotalDuration.TotalSeconds : 0;
         set
         {
-            if (TotalDuration.TotalSeconds > 0)
+            // Only seek when not playing - during playback, the engine controls position
+            // and the TwoWay binding would otherwise create a feedback loop
+            if (TotalDuration.TotalSeconds > 0 && !IsPlaying)
             {
                 SeekTo(TimeSpan.FromSeconds(value * TotalDuration.TotalSeconds));
             }
@@ -170,6 +176,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         set => SetField(ref _showBarsBeatsGrid, value);
     }
 
+    public bool ShowNoteNames
+    {
+        get => _showNoteNames;
+        set => SetField(ref _showNoteNames, value);
+    }
+
     public bool OverlayMode
     {
         get => _overlayMode;
@@ -187,6 +199,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(CanPause));
                 OnPropertyChanged(nameof(CanStop));
                 OnPropertyChanged(nameof(IsPlaying));
+                OnPropertyChanged(nameof(IsNotPlaying));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -196,6 +209,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// Whether playback is currently active (for smooth scrolling).
     /// </summary>
     public bool IsPlaying => PlaybackState == PlaybackState.Playing;
+
+    /// <summary>
+    /// Inverse of IsPlaying - used to disable seek slider during playback.
+    /// </summary>
+    public bool IsNotPlaying => !IsPlaying;
 
     public ObservableCollection<MidiDeviceInfo> Devices { get; } = [];
 
@@ -476,9 +494,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 CurrentTempo = tempo.BeatsPerMinute;
             }
 
-            // Periodically update channel states
-            if (_snapshotBuilder != null)
+            // Throttle channel state updates to once per second during playback
+            // (instrument names only change on program change events)
+            var now = DateTime.UtcNow;
+            if (_snapshotBuilder != null && (now - _lastChannelStateUpdate).TotalMilliseconds > 1000)
             {
+                _lastChannelStateUpdate = now;
                 _channelStates = _snapshotBuilder.RebuildStateAtTick(e.Tick);
                 OnPropertyChanged(nameof(ChannelStates));
             }
