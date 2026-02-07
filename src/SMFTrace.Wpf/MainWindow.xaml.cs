@@ -179,7 +179,18 @@ public partial class MainWindow : Window
             var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
             if (files?.Length >= 1 && IsMidiFile(files[0]))
             {
+                // Stop any existing playback and reset view before loading
+                if (_viewModel.CanStop)
+                {
+                    _viewModel.StopCommand.Execute(null);
+                }
+
                 _viewModel.LoadFile(files[0]);
+
+                if (_viewModel.CanPlay)
+                {
+                    _viewModel.PlayCommand.Execute(null);
+                }
             }
         }
     }

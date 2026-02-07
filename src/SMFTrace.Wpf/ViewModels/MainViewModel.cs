@@ -381,6 +381,19 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private void Stop()
     {
         _engine?.Stop();
+        CurrentTime = TimeSpan.Zero;
+
+        if (_snapshotBuilder != null)
+        {
+            _channelStates = _snapshotBuilder.RebuildStateAtTick(0);
+            OnPropertyChanged(nameof(ChannelStates));
+        }
+
+        if (_fileData?.TempoMap != null)
+        {
+            var tempo = _fileData.TempoMap.GetTempoAtTime(new Melanchall.DryWetMidi.Interaction.MidiTimeSpan(0));
+            CurrentTempo = tempo.BeatsPerMinute;
+        }
     }
 
     private void SeekTo(TimeSpan time)

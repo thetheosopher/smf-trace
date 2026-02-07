@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using SMFTrace.Core.Models;
 
@@ -216,6 +217,8 @@ public class PianoRollPanel : FrameworkElement
     private readonly DrawingVisual _laneHeadersVisual;
     private readonly DrawingVisual _tempoVisual;
 
+    private ScrollViewer? _scrollViewer;
+
     private readonly PianoRollSettings _settings = new();
     private List<LaneLayout> _lanes = [];
     private List<PairedNote> _allNotes = [];
@@ -302,6 +305,62 @@ public class PianoRollPanel : FrameworkElement
 
         // Ensure cleanup when unloaded
         Unloaded += (_, _) => StopSmoothScrolling();
+    }
+
+    private void EnsureScrollViewer()
+    {
+        if (_scrollViewer != null)
+        {
+            return;
+        }
+
+        _scrollViewer = FindAncestor<ScrollViewer>(this);
+    }
+
+    private void GetVisibleVerticalRange(out double top, out double bottom)
+    {
+        EnsureScrollViewer();
+        if (_scrollViewer == null || _scrollViewer.ViewportHeight <= 0)
+        {
+            top = 0;
+            bottom = ActualHeight;
+            return;
+        }
+
+        top = _scrollViewer.VerticalOffset;
+        bottom = top + _scrollViewer.ViewportHeight;
+    }
+
+    private bool TryGetContentClipRect(out Rect rect)
+    {
+        GetVisibleVerticalRange(out var top, out var bottom);
+
+        var width = ActualWidth - PianoRollSettings.LaneHeaderWidth;
+        var height = bottom - top;
+
+        if (width <= 0 || height <= 0)
+        {
+            rect = Rect.Empty;
+            return false;
+        }
+
+        rect = new Rect(PianoRollSettings.LaneHeaderWidth, top, width, height);
+        return true;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? start) where T : DependencyObject
+    {
+        var current = start;
+        while (current != null)
+        {
+            current = VisualTreeHelper.GetParent(current);
+            if (current is T typed)
+            {
+                return typed;
+            }
+        }
+
+        return null;
     }
 
     #endregion
@@ -630,15 +689,32 @@ public class PianoRollPanel : FrameworkElement
         using var dc = _backgroundVisual.RenderOpen();
         dc.DrawRectangle(BackgroundBrush, null, new Rect(0, 0, ActualWidth, ActualHeight));
 
+        GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
+
+        var clipped = TryGetContentClipRect(out var clipRect);
+        if (clipped)
+        {
+            dc.PushClip(new RectangleGeometry(clipRect));
+        }
+
         // Draw lane backgrounds
         for (var i = 0; i < _lanes.Count; i++)
         {
             var lane = _lanes[i];
+            if (lane.YOffset + lane.Height < visibleTop || lane.YOffset > visibleBottom)
+            {
+                continue;
+            }
             var brush = i % 2 == 0 ? LaneBackgroundBrush : LaneAlternateBrush;
             dc.DrawRectangle(
                 brush,
                 null,
                 new Rect(PianoRollSettings.LaneHeaderWidth, lane.YOffset, ActualWidth - PianoRollSettings.LaneHeaderWidth, lane.Height));
+        }
+
+        if (clipped)
+        {
+            dc.Pop();
         }
     }
 
@@ -660,6 +736,8 @@ public class PianoRollPanel : FrameworkElement
         var leftTime = RenderTime.TotalSeconds - WindowSeconds * PianoRollSettings.PlayheadPosition;
         var rightTime = leftTime + WindowSeconds;
 
+        GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
+
         // Draw vertical time grid lines (every second for now, adjust based on zoom)
         var gridInterval = CalculateGridInterval(pixelsPerSecond);
         var startSecond = Math.Floor(leftTime / gridInterval) * gridInterval;
@@ -671,13 +749,28 @@ public class PianoRollPanel : FrameworkElement
             var x = PianoRollSettings.LaneHeaderWidth + (t - leftTime) * pixelsPerSecond;
             if (x < PianoRollSettings.LaneHeaderWidth || x > ActualWidth) continue;
 
-            dc.DrawLine(GridPen, new Point(x, 0), new Point(x, ActualHeight));
+            dc.DrawLine(GridPen, new Point(x, visibleTop), new Point(x, visibleBottom));
+        }
+
+        var clipped = TryGetContentClipRect(out var clipRect);
+        if (clipped)
+        {
+            dc.PushClip(new RectangleGeometry(clipRect));
         }
 
         // Draw horizontal pitch grid lines for each lane
         foreach (var lane in _lanes)
         {
+            if (lane.YOffset + lane.Height < visibleTop || lane.YOffset > visibleBottom)
+            {
+                continue;
+            }
             RenderPitchGrid(dc, lane);
+        }
+
+        if (clipped)
+        {
+            dc.Pop();
         }
     }
 
@@ -712,9 +805,26 @@ public class PianoRollPanel : FrameworkElement
         var leftTime = RenderTime.TotalSeconds - WindowSeconds * PianoRollSettings.PlayheadPosition;
         var rightTime = leftTime + WindowSeconds;
 
+        GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
+
+        var clipped = TryGetContentClipRect(out var clipRect);
+        if (clipped)
+        {
+            dc.PushClip(new RectangleGeometry(clipRect));
+        }
+
         foreach (var lane in _lanes)
         {
+            if (lane.YOffset + lane.Height < visibleTop || lane.YOffset > visibleBottom)
+            {
+                continue;
+            }
             RenderLaneNotes(dc, lane, leftTime, rightTime, pixelsPerSecond);
+        }
+
+        if (clipped)
+        {
+            dc.Pop();
         }
     }
 
@@ -794,8 +904,14 @@ public class PianoRollPanel : FrameworkElement
             return;
         }
 
+        GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
+
         foreach (var lane in _lanes)
         {
+            if (lane.YOffset + lane.Height < visibleTop || lane.YOffset > visibleBottom)
+            {
+                continue;
+            }
             var y = lane.YOffset + 4;
             var x = 4.0;
 
