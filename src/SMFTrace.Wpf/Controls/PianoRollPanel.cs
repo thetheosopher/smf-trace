@@ -264,10 +264,10 @@ public class PianoRollPanel : FrameworkElement
     private static readonly Brush LaneHeaderBrush;
     private static readonly Brush PianoWhiteBrush;
     private static readonly Brush PianoBlackBrush;
-    private static readonly Brush PianoActiveWhiteBrush;
-    private static readonly Brush PianoActiveWhiteGlowBrush;
-    private static readonly Brush PianoActiveBlackGlowBrush;
-    private static readonly Brush PianoActiveBlackBrush;
+    private static readonly Brush PianoActiveFillBrush;
+    private static readonly Brush PianoActiveGlowBrush;
+    private static readonly Pen PianoActiveOuterPen;
+    private static readonly Pen PianoActiveInnerPen;
     private static readonly Pen PianoKeyOutlinePen;
     private static readonly Typeface LabelTypeface;
 
@@ -304,17 +304,17 @@ public class PianoRollPanel : FrameworkElement
         PianoBlackBrush = new SolidColorBrush(Color.FromRgb(35, 35, 35));
         PianoBlackBrush.Freeze();
 
-        PianoActiveWhiteBrush = new SolidColorBrush(Color.FromRgb(80, 200, 120));
-        PianoActiveWhiteBrush.Freeze();
+        PianoActiveFillBrush = new SolidColorBrush(Color.FromArgb(255, 213, 94, 0));
+        PianoActiveFillBrush.Freeze();
 
-        PianoActiveWhiteGlowBrush = new SolidColorBrush(Color.FromArgb(140, 230, 180, 60));
-        PianoActiveWhiteGlowBrush.Freeze();
+        PianoActiveGlowBrush = new SolidColorBrush(Color.FromArgb(255, 213, 94, 0));
+        PianoActiveGlowBrush.Freeze();
 
-        PianoActiveBlackGlowBrush = new SolidColorBrush(Color.FromArgb(200, 240, 190, 70));
-        PianoActiveBlackGlowBrush.Freeze();
+        PianoActiveOuterPen = new Pen(new SolidColorBrush(Color.FromArgb(224, 255, 255, 255)), 2);
+        PianoActiveOuterPen.Freeze();
 
-        PianoActiveBlackBrush = new SolidColorBrush(Color.FromRgb(60, 160, 95));
-        PianoActiveBlackBrush.Freeze();
+        PianoActiveInnerPen = new Pen(new SolidColorBrush(Color.FromArgb(166, 0, 0, 0)), 2);
+        PianoActiveInnerPen.Freeze();
 
         PianoKeyOutlinePen = new Pen(new SolidColorBrush(Color.FromArgb(60, 200, 200, 200)), 1);
         PianoKeyOutlinePen.Freeze();
@@ -1072,10 +1072,12 @@ public class PianoRollPanel : FrameworkElement
             if (isActive)
             {
                 var inset = Math.Max(1, rowHeight * 0.12);
-                var glowRect = new Rect(rect.X - 1, rect.Y - 1, rect.Width + 2, rect.Height + 2);
-                var activeRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
-                dc.DrawRectangle(PianoActiveWhiteGlowBrush, null, glowRect);
-                dc.DrawRectangle(PianoActiveWhiteBrush, null, activeRect);
+                var glowRect = new Rect(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
+                var innerRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
+                dc.DrawRectangle(PianoActiveGlowBrush, null, glowRect);
+                dc.DrawRectangle(PianoActiveFillBrush, null, rect);
+                dc.DrawRectangle(null, PianoActiveOuterPen, rect);
+                dc.DrawRectangle(null, PianoActiveInnerPen, innerRect);
             }
         }
 
@@ -1096,13 +1098,19 @@ public class PianoRollPanel : FrameworkElement
                 y + (rowHeight - blackKeyHeight) / 2,
                 blackKeyWidth,
                 blackKeyHeight);
-            var brush = isActive ? PianoActiveBlackBrush : PianoBlackBrush;
+            dc.DrawRectangle(PianoBlackBrush, null, rect);
+
             if (isActive)
             {
-                var glowRect = new Rect(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
-                dc.DrawRectangle(PianoActiveBlackGlowBrush, null, glowRect);
+                var glowRect = new Rect(rect.X - 5, rect.Y - 5, rect.Width + 10, rect.Height + 10);
+                var inset = Math.Max(1, rowHeight * 0.12);
+                var innerRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
+                var outerRect = rect;
+                dc.DrawRectangle(PianoActiveGlowBrush, null, glowRect);
+                dc.DrawRectangle(PianoActiveFillBrush, null, rect);
+                dc.DrawRectangle(null, PianoActiveOuterPen, outerRect);
+                dc.DrawRectangle(null, PianoActiveInnerPen, innerRect);
             }
-            dc.DrawRectangle(brush, null, rect);
         }
     }
 
