@@ -49,7 +49,6 @@ public class SettingsServiceTests : IDisposable
         service.Current.WindowWidth = 1920;
         service.Current.WindowHeight = 1080;
         service.Current.LastDeviceName = "Test Device";
-        service.Current.DisableSysExOutput = true;
 
         // Act
         service.Save();
@@ -61,7 +60,6 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(1920, service2.Current.WindowWidth);
         Assert.Equal(1080, service2.Current.WindowHeight);
         Assert.Equal("Test Device", service2.Current.LastDeviceName);
-        Assert.True(service2.Current.DisableSysExOutput);
     }
 
     [Fact]

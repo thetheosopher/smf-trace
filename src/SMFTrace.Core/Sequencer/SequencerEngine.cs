@@ -480,10 +480,7 @@ public sealed class SequencerEngine : IDisposable
                 break;
 
             case SysExEvent sysex:
-                if (!_options.DisableSysExOutput)
-                {
-                    _output.SendSysEx(sysex.Data);
-                }
+                _output.SendSysEx(sysex.Data);
                 break;
         }
 

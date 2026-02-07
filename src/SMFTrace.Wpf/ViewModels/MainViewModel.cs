@@ -20,7 +20,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private MidiFileData? _fileData;
     private SequencerEngine? _engine;
-    private IMidiOutput? _midiOutput;
+    private WinMidiOutput? _midiOutput;
     private StateSnapshotBuilder? _snapshotBuilder;
 
     private string _windowTitle = "SMF Trace";
@@ -30,7 +30,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
     private bool _overlayMode;
-    private bool _disableSysExOutput;
     private PlaybackState _playbackState = PlaybackState.Stopped;
     private MidiDeviceInfo? _selectedDevice;
     private bool _isFileLoaded;
@@ -82,7 +81,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _showTempo = s.ShowTempo;
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
         _overlayMode = s.OverlayMode;
-        _disableSysExOutput = s.DisableSysExOutput;
 
         // Apply diagnostics filter states
         Diagnostics.ShowNotes = s.DiagShowNotes;
@@ -101,7 +99,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.ShowTempo = ShowTempo;
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
         s.OverlayMode = OverlayMode;
-        s.DisableSysExOutput = DisableSysExOutput;
         s.LastDeviceName = SelectedDevice?.Name;
 
         // Save diagnostics filter states
@@ -177,18 +174,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _overlayMode;
         set => SetField(ref _overlayMode, value);
-    }
-
-    public bool DisableSysExOutput
-    {
-        get => _disableSysExOutput;
-        set
-        {
-            if (SetField(ref _disableSysExOutput, value))
-            {
-                UpdateSysExGate();
-            }
-        }
     }
 
     public PlaybackState PlaybackState
@@ -454,11 +439,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             try
             {
-                var output = WinMidiOutput.Open(SelectedDevice.Value.DeviceId);
-                _midiOutput = DisableSysExOutput
-                    ? new SysExGate(output, disableSysExOutput: true)
-                    : output;
-
+                _midiOutput = WinMidiOutput.Open(SelectedDevice.Value.DeviceId);
                 _engine?.SetOutput(new MidiOutputAdapter(_midiOutput));
             }
             catch (Exception ex)
@@ -472,12 +453,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
 
         OnPropertyChanged(nameof(CanPlay));
-    }
-
-    private void UpdateSysExGate()
-    {
-        // Recreate output with/without SysEx gate
-        OnDeviceChanged();
     }
 
     #endregion

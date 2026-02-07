@@ -116,8 +116,6 @@
                 <CheckBox Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource DarkCheckBoxStyle}"/>
                 <CheckBox Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource DarkCheckBoxStyle}"/>
                 <CheckBox Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Overlay all tracks with distinct colors"/>
-                <Separator/>
-                <CheckBox Content="Disable SysEx Output" IsChecked="{Binding DisableSysExOutput}" Style="{StaticResource DarkCheckBoxStyle}"/>
             </ToolBar>
         </ToolBarTray>
 

@@ -51,11 +51,6 @@ public sealed class AppSettings
     public bool OverlayMode { get; set; }
 
     /// <summary>
-    /// Whether SysEx output is disabled.
-    /// </summary>
-    public bool DisableSysExOutput { get; set; }
-
-    /// <summary>
     /// Piano roll zoom level (seconds visible in window).
     /// </summary>
     public double PianoRollWindowSeconds { get; set; } = 30.0;

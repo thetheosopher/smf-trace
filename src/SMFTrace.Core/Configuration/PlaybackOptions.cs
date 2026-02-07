@@ -6,11 +6,6 @@ namespace SMFTrace.Core.Configuration;
 public sealed class PlaybackOptions
 {
     /// <summary>
-    /// When true, SysEx events are decoded and displayed but not transmitted to the output device.
-    /// </summary>
-    public bool DisableSysExOutput { get; set; }
-
-    /// <summary>
     /// Whether to display tempo (BPM) overlay on the piano roll.
     /// </summary>
     public bool ShowTempo { get; set; } = true;
