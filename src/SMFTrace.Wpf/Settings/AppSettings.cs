@@ -36,11 +36,6 @@ public sealed class AppSettings
     public bool IsMaximized { get; set; }
 
     /// <summary>
-    /// Render FPS for piano roll (30 or 60).
-    /// </summary>
-    public int RenderFps { get; set; } = 60;
-
-    /// <summary>
     /// Whether tempo display is enabled.
     /// </summary>
     public bool ShowTempo { get; set; } = true;

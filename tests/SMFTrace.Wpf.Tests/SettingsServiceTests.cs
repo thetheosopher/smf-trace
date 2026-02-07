@@ -38,7 +38,6 @@ public class SettingsServiceTests : IDisposable
         // Assert
         Assert.Equal(1280, service.Current.WindowWidth);
         Assert.Equal(800, service.Current.WindowHeight);
-        Assert.Equal(60, service.Current.RenderFps);
         Assert.True(service.Current.ShowTempo);
     }
 
@@ -51,7 +50,6 @@ public class SettingsServiceTests : IDisposable
         service.Current.WindowHeight = 1080;
         service.Current.LastDeviceName = "Test Device";
         service.Current.DisableSysExOutput = true;
-        service.Current.RenderFps = 30;
 
         // Act
         service.Save();
@@ -64,7 +62,6 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(1080, service2.Current.WindowHeight);
         Assert.Equal("Test Device", service2.Current.LastDeviceName);
         Assert.True(service2.Current.DisableSysExOutput);
-        Assert.Equal(30, service2.Current.RenderFps);
     }
 
     [Fact]
@@ -87,14 +84,12 @@ public class SettingsServiceTests : IDisposable
         // Arrange
         var service = new SettingsService(_settingsPath);
         service.Current.WindowWidth = 9999;
-        service.Current.RenderFps = 30;
 
         // Act
         service.Reset();
 
         // Assert
         Assert.Equal(1280, service.Current.WindowWidth);
-        Assert.Equal(60, service.Current.RenderFps);
     }
 
     [Fact]

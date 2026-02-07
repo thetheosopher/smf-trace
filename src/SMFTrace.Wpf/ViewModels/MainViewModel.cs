@@ -31,12 +31,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showBarsBeatsGrid = true;
     private bool _overlayMode;
     private bool _disableSysExOutput;
-    private int _targetFps = 60;
     private PlaybackState _playbackState = PlaybackState.Stopped;
     private MidiDeviceInfo? _selectedDevice;
     private bool _isFileLoaded;
     private ChannelState[] _channelStates = new ChannelState[16];
     private double _currentTempo = 120.0;
+    private bool _isSeeking;
 
     /// <summary>Diagnostics tab view model.</summary>
     public DiagnosticsViewModel Diagnostics { get; } = new();
@@ -83,7 +83,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
         _overlayMode = s.OverlayMode;
         _disableSysExOutput = s.DisableSysExOutput;
-        _targetFps = s.RenderFps;
 
         // Apply diagnostics filter states
         Diagnostics.ShowNotes = s.DiagShowNotes;
@@ -103,7 +102,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
         s.OverlayMode = OverlayMode;
         s.DisableSysExOutput = DisableSysExOutput;
-        s.RenderFps = TargetFps;
         s.LastDeviceName = SelectedDevice?.Name;
 
         // Save diagnostics filter states
@@ -130,7 +128,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             if (SetField(ref _currentTime, value))
             {
-                OnPropertyChanged(nameof(SeekPosition));
+                // Only notify SeekPosition when not actively seeking (prevents feedback loop)
+                if (!_isSeeking)
+                {
+                    OnPropertyChanged(nameof(SeekPosition));
+                }
             }
         }
     }
@@ -187,12 +189,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 UpdateSysExGate();
             }
         }
-    }
-
-    public int TargetFps
-    {
-        get => _targetFps;
-        set => SetField(ref _targetFps, value);
     }
 
     public PlaybackState PlaybackState
@@ -395,6 +391,23 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private void ZoomOut()
     {
         WindowSeconds = Math.Min(WindowSeconds * 1.25, 300.0);
+    }
+
+    /// <summary>
+    /// Called when the user begins dragging the seek slider.
+    /// </summary>
+    public void BeginSeek()
+    {
+        _isSeeking = true;
+    }
+
+    /// <summary>
+    /// Called when the user finishes dragging the seek slider.
+    /// </summary>
+    public void EndSeek()
+    {
+        _isSeeking = false;
+        OnPropertyChanged(nameof(SeekPosition));
     }
 
     #endregion

@@ -117,12 +117,6 @@
                 <CheckBox Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource DarkCheckBoxStyle}"/>
                 <CheckBox Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Overlay all tracks with distinct colors"/>
                 <Separator/>
-                <TextBlock Text="FPS:" VerticalAlignment="Center" Foreground="White" Margin="4,0"/>
-                <ComboBox SelectedItem="{Binding TargetFps}" Width="50" Margin="4,0" Style="{StaticResource DarkComboBoxStyle}">
-                    <ComboBoxItem Content="60"/>
-                    <ComboBoxItem Content="30"/>
-                </ComboBox>
-                <Separator/>
                 <CheckBox Content="Disable SysEx Output" IsChecked="{Binding DisableSysExOutput}" Style="{StaticResource DarkCheckBoxStyle}"/>
             </ToolBar>
         </ToolBarTray>
@@ -162,12 +156,15 @@
                        Margin="8,0"
                        FontFamily="Consolas"/>
 
-            <Slider Grid.Column="1"
+            <Slider x:Name="SeekSlider"
+                    Grid.Column="1"
                     Minimum="0"
                     Maximum="1"
                     Value="{Binding SeekPosition, Mode=TwoWay}"
                     VerticalAlignment="Center"
-                    Margin="8,0"/>
+                    Margin="8,0"
+                    Thumb.DragStarted="SeekSlider_DragStarted"
+                    Thumb.DragCompleted="SeekSlider_DragCompleted"/>
 
             <TextBlock Grid.Column="2"
                        Text="{Binding TotalDuration, StringFormat='{}{0:mm\\:ss\\.fff}'}"

@@ -11,11 +11,6 @@ public sealed class PlaybackOptions
     public bool DisableSysExOutput { get; set; }
 
     /// <summary>
-    /// Target frames per second for piano roll rendering (60 or 30).
-    /// </summary>
-    public int RenderFps { get; set; } = 60;
-
-    /// <summary>
     /// Whether to display tempo (BPM) overlay on the piano roll.
     /// </summary>
     public bool ShowTempo { get; set; } = true;

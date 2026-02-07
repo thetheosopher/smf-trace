@@ -37,6 +37,10 @@ public sealed class SequencerEngine : IDisposable
     private PlaybackState _state = PlaybackState.Stopped;
     private PlaybackState _stateBeforeScrub = PlaybackState.Stopped;
 
+    // Position update interval for smooth UI updates (60 Hz)
+    private static readonly TimeSpan PositionUpdateInterval = TimeSpan.FromMilliseconds(1000.0 / 60.0);
+    private TimeSpan _lastPositionUpdate;
+
     /// <summary>
     /// Raised when the playback position changes.
     /// </summary>
@@ -125,14 +129,31 @@ public sealed class SequencerEngine : IDisposable
     /// </summary>
     public void Pause()
     {
+        // Check state before doing work
+        bool wasPlaying;
         lock (_lock)
         {
-            if (_state != PlaybackState.Playing)
-            {
-                return;
-            }
+            wasPlaying = _state == PlaybackState.Playing;
+            if (!wasPlaying) return;
+        }
 
-            StopPlaybackLoop();
+        // Cancel and wait outside the lock to avoid deadlock
+        _playbackCts?.Cancel();
+        try
+        {
+            _playbackTask?.Wait(100);
+        }
+        catch (AggregateException)
+        {
+            // Expected on cancellation
+        }
+
+        lock (_lock)
+        {
+            _playbackCts?.Dispose();
+            _playbackCts = null;
+            _playbackTask = null;
+
             _output?.AllNotesOff();
             SetState(PlaybackState.Paused);
         }
@@ -143,9 +164,23 @@ public sealed class SequencerEngine : IDisposable
     /// </summary>
     public void Stop()
     {
+        // First cancel and wait outside the lock to avoid deadlock
+        _playbackCts?.Cancel();
+        try
+        {
+            _playbackTask?.Wait(100);
+        }
+        catch (AggregateException)
+        {
+            // Expected on cancellation
+        }
+
         lock (_lock)
         {
-            StopPlaybackLoop();
+            _playbackCts?.Dispose();
+            _playbackCts = null;
+            _playbackTask = null;
+
             _output?.AllNotesOff();
             _currentEventIndex = 0;
             _currentTick = 0;
@@ -160,12 +195,34 @@ public sealed class SequencerEngine : IDisposable
     /// </summary>
     public void BeginScrub()
     {
+        bool wasPlaying;
         lock (_lock)
         {
             _stateBeforeScrub = _state;
-            if (_state == PlaybackState.Playing)
+            wasPlaying = _state == PlaybackState.Playing;
+        }
+
+        if (wasPlaying)
+        {
+            // Cancel and wait outside the lock to avoid deadlock
+            _playbackCts?.Cancel();
+            try
             {
-                StopPlaybackLoop();
+                _playbackTask?.Wait(100);
+            }
+            catch (AggregateException)
+            {
+                // Expected on cancellation
+            }
+        }
+
+        lock (_lock)
+        {
+            if (wasPlaying)
+            {
+                _playbackCts?.Dispose();
+                _playbackCts = null;
+                _playbackTask = null;
             }
 
             SetState(PlaybackState.Scrubbing);
@@ -278,6 +335,7 @@ public sealed class SequencerEngine : IDisposable
     {
         var stopwatch = Stopwatch.StartNew();
         var startTime = _currentTime;
+        _lastPositionUpdate = TimeSpan.Zero;
 
         while (!token.IsCancellationRequested)
         {
@@ -307,22 +365,36 @@ public sealed class SequencerEngine : IDisposable
             var timeUntilEvent = eventTime - _currentTime;
             if (timeUntilEvent > TimeSpan.Zero)
             {
-                // Use spin-wait for sub-millisecond precision
-                if (timeUntilEvent.TotalMilliseconds > 2)
+                // Use spin-wait for sub-millisecond precision, but also update position periodically
+                while (timeUntilEvent > TimeSpan.Zero && !token.IsCancellationRequested)
                 {
-                    Thread.Sleep((int)(timeUntilEvent.TotalMilliseconds - 1));
-                }
+                    // Sleep for a short time, but wake up for position updates
+                    var sleepTime = Math.Min(timeUntilEvent.TotalMilliseconds, PositionUpdateInterval.TotalMilliseconds);
+                    if (sleepTime > 1)
+                    {
+                        Thread.Sleep((int)sleepTime);
+                    }
+                    else
+                    {
+                        Thread.SpinWait(10);
+                    }
 
-                // Spin-wait for the remaining time
-                var targetTime = _currentTime + timeUntilEvent;
-                while (_currentTime < targetTime && !token.IsCancellationRequested)
-                {
+                    // Update current time
                     lock (_lock)
                     {
                         _currentTime = startTime + stopwatch.Elapsed;
+                        _currentTick = TimeToTick(_currentTime);
                     }
 
-                    Thread.SpinWait(10);
+                    // Raise periodic position update for smooth UI
+                    var elapsed = stopwatch.Elapsed;
+                    if (elapsed - _lastPositionUpdate >= PositionUpdateInterval)
+                    {
+                        _lastPositionUpdate = elapsed;
+                        RaisePositionChanged();
+                    }
+
+                    timeUntilEvent = eventTime - _currentTime;
                 }
 
                 if (token.IsCancellationRequested)
@@ -343,6 +415,8 @@ public sealed class SequencerEngine : IDisposable
                 }
             }
 
+            // Always raise position update after dispatching event
+            _lastPositionUpdate = stopwatch.Elapsed;
             RaisePositionChanged();
         }
     }

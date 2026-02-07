@@ -35,9 +35,6 @@ public sealed class PianoRollSettings
     /// <summary>Gap between lanes in pixels.</summary>
     public const double LaneGap = 2.0;
 
-    /// <summary>Target refresh rate in FPS.</summary>
-    public int TargetFps { get; set; } = 60;
-
     /// <summary>Visible time window in seconds.</summary>
     public double WindowSeconds { get; set; } = DefaultWindowSeconds;
 

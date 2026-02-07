@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls.Primitives;
 using SMFTrace.Wpf.ViewModels;
 
 namespace SMFTrace.Wpf;
@@ -121,5 +122,15 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         _viewModel.Dispose();
+    }
+
+    private void SeekSlider_DragStarted(object sender, DragStartedEventArgs e)
+    {
+        _viewModel.BeginSeek();
+    }
+
+    private void SeekSlider_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        _viewModel.EndSeek();
     }
 }
