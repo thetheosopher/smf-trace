@@ -27,7 +27,10 @@ public sealed class PianoRollSettings
     public const double PitchRowHeight = 8.0;
 
     /// <summary>Lane header width in pixels.</summary>
-    public const double LaneHeaderWidth = 150.0;
+    public const double LaneHeaderWidth = 200.0;
+
+    /// <summary>Piano key column width in pixels.</summary>
+    public const double PianoKeyWidth = 46.0;
 
     /// <summary>Minimum lane height in pixels.</summary>
     public const double MinLaneHeight = 50.0;

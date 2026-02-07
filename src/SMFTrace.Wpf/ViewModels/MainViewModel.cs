@@ -30,6 +30,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
     private bool _showNoteNames;
+    private bool _showPianoKeys;
     private bool _compactPitchRange;
     private bool _overlayMode;
     private PlaybackState _playbackState = PlaybackState.Stopped;
@@ -84,6 +85,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _showTempo = s.ShowTempo;
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
         _showNoteNames = s.ShowNoteNames;
+        _showPianoKeys = s.ShowPianoKeys;
         _compactPitchRange = s.CompactPitchRange;
         _overlayMode = s.OverlayMode;
 
@@ -104,6 +106,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.ShowTempo = ShowTempo;
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
         s.ShowNoteNames = ShowNoteNames;
+        s.ShowPianoKeys = ShowPianoKeys;
         s.CompactPitchRange = CompactPitchRange;
         s.OverlayMode = OverlayMode;
         s.LastDeviceName = SelectedDevice?.Name;
@@ -183,6 +186,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _showNoteNames;
         set => SetField(ref _showNoteNames, value);
+    }
+
+    public bool ShowPianoKeys
+    {
+        get => _showPianoKeys;
+        set => SetField(ref _showPianoKeys, value);
     }
 
     public bool CompactPitchRange

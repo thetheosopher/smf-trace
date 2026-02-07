@@ -75,6 +75,13 @@ public class PianoRollPanel : FrameworkElement
             typeof(PianoRollPanel),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnShowNoteNamesChanged));
 
+    public static readonly DependencyProperty ShowPianoKeysProperty =
+        DependencyProperty.Register(
+            nameof(ShowPianoKeys),
+            typeof(bool),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnShowPianoKeysChanged));
+
     public static readonly DependencyProperty CompactPitchRangeProperty =
         DependencyProperty.Register(
             nameof(CompactPitchRange),
@@ -130,6 +137,12 @@ public class PianoRollPanel : FrameworkElement
         set => SetValue(ShowNoteNamesProperty, value);
     }
 
+    public bool ShowPianoKeys
+    {
+        get => (bool)GetValue(ShowPianoKeysProperty);
+        set => SetValue(ShowPianoKeysProperty, value);
+    }
+
     public bool CompactPitchRange
     {
         get => (bool)GetValue(CompactPitchRangeProperty);
@@ -180,6 +193,14 @@ public class PianoRollPanel : FrameworkElement
     }
 
     private static void OnShowNoteNamesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel.InvalidateLaneHeaders();
+        }
+    }
+
+    private static void OnShowPianoKeysChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is PianoRollPanel panel)
         {
@@ -241,6 +262,13 @@ public class PianoRollPanel : FrameworkElement
     private static readonly Brush LaneBackgroundBrush;
     private static readonly Brush LaneAlternateBrush;
     private static readonly Brush LaneHeaderBrush;
+    private static readonly Brush PianoWhiteBrush;
+    private static readonly Brush PianoBlackBrush;
+    private static readonly Brush PianoActiveWhiteBrush;
+    private static readonly Brush PianoActiveWhiteGlowBrush;
+    private static readonly Brush PianoActiveBlackGlowBrush;
+    private static readonly Brush PianoActiveBlackBrush;
+    private static readonly Pen PianoKeyOutlinePen;
     private static readonly Typeface LabelTypeface;
 
     #endregion
@@ -269,6 +297,27 @@ public class PianoRollPanel : FrameworkElement
 
         LaneHeaderBrush = new SolidColorBrush(Color.FromRgb(50, 50, 55));
         LaneHeaderBrush.Freeze();
+
+        PianoWhiteBrush = new SolidColorBrush(Color.FromRgb(235, 235, 235));
+        PianoWhiteBrush.Freeze();
+
+        PianoBlackBrush = new SolidColorBrush(Color.FromRgb(35, 35, 35));
+        PianoBlackBrush.Freeze();
+
+        PianoActiveWhiteBrush = new SolidColorBrush(Color.FromRgb(80, 200, 120));
+        PianoActiveWhiteBrush.Freeze();
+
+        PianoActiveWhiteGlowBrush = new SolidColorBrush(Color.FromArgb(140, 230, 180, 60));
+        PianoActiveWhiteGlowBrush.Freeze();
+
+        PianoActiveBlackGlowBrush = new SolidColorBrush(Color.FromArgb(140, 230, 180, 60));
+        PianoActiveBlackGlowBrush.Freeze();
+
+        PianoActiveBlackBrush = new SolidColorBrush(Color.FromRgb(60, 160, 95));
+        PianoActiveBlackBrush.Freeze();
+
+        PianoKeyOutlinePen = new Pen(new SolidColorBrush(Color.FromArgb(60, 200, 200, 200)), 1);
+        PianoKeyOutlinePen.Freeze();
 
         LabelTypeface = new Typeface("Segoe UI");
     }
@@ -361,6 +410,11 @@ public class PianoRollPanel : FrameworkElement
         }
 
         return null;
+    }
+
+    private static double GetPianoKeyLeft()
+    {
+        return PianoRollSettings.LaneHeaderWidth - PianoRollSettings.PianoKeyWidth;
     }
 
     #endregion
@@ -894,7 +948,16 @@ public class PianoRollPanel : FrameworkElement
 
         if (OverlayMode)
         {
-            RenderOverlayTrackList(dc);
+            var renderTime = RenderTime;
+            var keyLeft = GetPianoKeyLeft();
+            var headerRight = ShowPianoKeys ? keyLeft - 4 : PianoRollSettings.LaneHeaderWidth - 4;
+
+            if (ShowPianoKeys && _lanes.Count > 0)
+            {
+                RenderPianoKeysForLane(dc, _lanes[0], renderTime, keyLeft);
+            }
+
+            RenderOverlayTrackList(dc, headerRight);
 
             // Also render note names in overlay mode (using first lane or full height)
             if (ShowNoteNames && _lanes.Count > 0)
@@ -905,6 +968,8 @@ public class PianoRollPanel : FrameworkElement
         }
 
         GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
+        var renderTimeLocal = RenderTime;
+        var keyLeftLocal = GetPianoKeyLeft();
 
         foreach (var lane in _lanes)
         {
@@ -914,6 +979,11 @@ public class PianoRollPanel : FrameworkElement
             }
             var y = lane.YOffset + 4;
             var x = 4.0;
+
+            if (ShowPianoKeys)
+            {
+                RenderPianoKeysForLane(dc, lane, renderTimeLocal, keyLeftLocal);
+            }
 
             // Track name
             if (!string.IsNullOrEmpty(lane.TrackName))
@@ -964,12 +1034,103 @@ public class PianoRollPanel : FrameworkElement
         }
     }
 
+    private void RenderPianoKeysForLane(DrawingContext dc, LaneLayout lane, TimeSpan renderTime, double keyLeft)
+    {
+        var pitchCount = lane.PitchCount;
+        if (pitchCount <= 0)
+        {
+            return;
+        }
+
+        var rowHeight = lane.Height / pitchCount;
+        var keyWidth = PianoRollSettings.PianoKeyWidth;
+        var blackKeyWidth = keyWidth * 0.6;
+        var blackKeyHeight = rowHeight * 0.6;
+        var blackKeyX = keyLeft + keyWidth - blackKeyWidth;
+
+        Span<bool> activeNotes = stackalloc bool[128];
+        BuildActiveNotes(lane, renderTime, activeNotes);
+
+        // White keybed behind the keys for contrast
+        var keybedRect = new Rect(keyLeft, lane.YOffset, keyWidth, lane.Height);
+        dc.DrawRectangle(PianoWhiteBrush, null, keybedRect);
+
+        // Draw white keys first
+        for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
+        {
+            if (IsBlackKey(pitch))
+            {
+                continue;
+            }
+
+            var relPitch = pitch - lane.PitchLow;
+            var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
+            var isActive = activeNotes[pitch];
+            var rect = new Rect(keyLeft, y + 1, keyWidth, rowHeight - 2);
+            dc.DrawRectangle(PianoWhiteBrush, PianoKeyOutlinePen, rect);
+
+            if (isActive)
+            {
+                var inset = Math.Max(1, rowHeight * 0.12);
+                var glowRect = new Rect(rect.X - 1, rect.Y - 1, rect.Width + 2, rect.Height + 2);
+                var activeRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
+                dc.DrawRectangle(PianoActiveWhiteGlowBrush, null, glowRect);
+                dc.DrawRectangle(PianoActiveWhiteBrush, null, activeRect);
+            }
+        }
+
+        for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
+        {
+            var relPitch = pitch - lane.PitchLow;
+            var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
+            var isBlack = IsBlackKey(pitch);
+            var isActive = activeNotes[pitch];
+
+            if (!isBlack)
+            {
+                continue;
+            }
+
+            var rect = new Rect(
+                blackKeyX,
+                y + (rowHeight - blackKeyHeight) / 2,
+                blackKeyWidth,
+                blackKeyHeight);
+            var brush = isActive ? PianoActiveBlackBrush : PianoBlackBrush;
+            if (isActive)
+            {
+                var glowRect = new Rect(rect.X - 1, rect.Y - 1, rect.Width + 2, rect.Height + 2);
+                dc.DrawRectangle(PianoActiveBlackGlowBrush, null, glowRect);
+            }
+            dc.DrawRectangle(brush, null, rect);
+        }
+    }
+
+    private static void BuildActiveNotes(LaneLayout lane, TimeSpan renderTime, Span<bool> activeNotes)
+    {
+        activeNotes.Clear();
+        foreach (var note in lane.Notes)
+        {
+            if (note.StartTime <= renderTime && note.EndTime >= renderTime)
+            {
+                activeNotes[note.NoteNumber] = true;
+            }
+        }
+    }
+
+    private static bool IsBlackKey(int pitch)
+    {
+        return pitch % 12 is 1 or 3 or 6 or 8 or 10;
+    }
+
     private void RenderNoteNamesForLane(DrawingContext dc, LaneLayout lane)
     {
         var pitchCount = lane.PitchCount;
         var rowHeight = lane.Height / pitchCount;
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var rightEdge = PianoRollSettings.LaneHeaderWidth - 2;
+        var rightEdge = ShowPianoKeys
+            ? GetPianoKeyLeft() - 2
+            : PianoRollSettings.LaneHeaderWidth - 2;
 
         // Calculate font size to fit within row height (leave some padding)
         var fontSize = Math.Max(6, Math.Min(rowHeight * 0.9, 10));
@@ -1008,7 +1169,7 @@ public class PianoRollPanel : FrameworkElement
         return $"{note}{octave}";
     }
 
-    private void RenderOverlayTrackList(DrawingContext dc)
+    private void RenderOverlayTrackList(DrawingContext dc, double headerRight)
     {
         // Get unique tracks from all notes
         var trackInfos = _allNotes
@@ -1074,7 +1235,7 @@ public class PianoRollPanel : FrameworkElement
                 dpi);
 
             // Clip text if too long
-            trackText.MaxTextWidth = PianoRollSettings.LaneHeaderWidth - x - colorBoxSize - 8;
+            trackText.MaxTextWidth = headerRight - x - colorBoxSize - 8;
             trackText.Trimming = TextTrimming.CharacterEllipsis;
 
             dc.DrawText(trackText, new Point(x + colorBoxSize + 4, y));

@@ -51,6 +51,11 @@ public sealed class AppSettings
     public bool ShowNoteNames { get; set; }
 
     /// <summary>
+    /// Whether piano keys are shown in the lane header.
+    /// </summary>
+    public bool ShowPianoKeys { get; set; }
+
+    /// <summary>
     /// Whether lane pitch ranges are compacted to used notes plus margin.
     /// </summary>
     public bool CompactPitchRange { get; set; }
