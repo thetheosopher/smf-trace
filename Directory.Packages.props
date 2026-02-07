@@ -11,6 +11,11 @@
     <!-- MVVM -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 
+    <!-- Installer (WiX) -->
+    <PackageVersion Include="WixToolset.UI.wixext" Version="4.0.1" />
+    <PackageVersion Include="WixToolset.Util.wixext" Version="4.0.1" />
+    <PackageVersion Include="WixToolset.Heat" Version="4.0.1" />
+
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
