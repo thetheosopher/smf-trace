@@ -64,6 +64,15 @@ public sealed class LaneLayout
     /// <summary>Height of this lane in pixels.</summary>
     public double Height { get; set; }
 
+    /// <summary>Low pitch of visible range for this lane.</summary>
+    public int PitchLow { get; set; }
+
+    /// <summary>High pitch of visible range for this lane.</summary>
+    public int PitchHigh { get; set; }
+
+    /// <summary>Number of pitches in the visible range.</summary>
+    public int PitchCount => PitchHigh - PitchLow + 1;
+
     /// <summary>Notes in this lane (paired for rendering).</summary>
     public List<PairedNote> Notes { get; } = [];
 }

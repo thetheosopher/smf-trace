@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using SMFTrace.Core.Models;
@@ -73,6 +74,13 @@ public class PianoRollPanel : FrameworkElement
             typeof(PianoRollPanel),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnShowNoteNamesChanged));
 
+    public static readonly DependencyProperty CompactPitchRangeProperty =
+        DependencyProperty.Register(
+            nameof(CompactPitchRange),
+            typeof(bool),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnCompactPitchRangeChanged));
+
     public TimeSpan CurrentTime
     {
         get => (TimeSpan)GetValue(CurrentTimeProperty);
@@ -119,6 +127,12 @@ public class PianoRollPanel : FrameworkElement
     {
         get => (bool)GetValue(ShowNoteNamesProperty);
         set => SetValue(ShowNoteNamesProperty, value);
+    }
+
+    public bool CompactPitchRange
+    {
+        get => (bool)GetValue(CompactPitchRangeProperty);
+        set => SetValue(CompactPitchRangeProperty, value);
     }
 
     private static void OnWindowSecondsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -169,6 +183,14 @@ public class PianoRollPanel : FrameworkElement
         if (d is PianoRollPanel panel)
         {
             panel.InvalidateLaneHeaders();
+        }
+    }
+
+    private static void OnCompactPitchRangeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel.RebuildLanes();
         }
     }
 
@@ -393,8 +415,41 @@ public class PianoRollPanel : FrameworkElement
             return 0;
         }
 
-        var laneHeight = _settings.CalculateLaneHeight();
-        return _lanes.Count * laneHeight + (_lanes.Count - 1) * PianoRollSettings.LaneGap;
+        var total = 0.0;
+        for (var i = 0; i < _lanes.Count; i++)
+        {
+            total += _lanes[i].Height;
+        }
+
+        total += (_lanes.Count - 1) * PianoRollSettings.LaneGap;
+        return total;
+    }
+
+    private (int Low, int High) GetLanePitchRange(List<PairedNote> notes)
+    {
+        if (!CompactPitchRange || notes.Count == 0)
+        {
+            return (_settings.PitchLow, _settings.PitchHigh);
+        }
+
+        var min = notes.Min(n => (int)n.NoteNumber) - 1;
+        var max = notes.Max(n => (int)n.NoteNumber) + 1;
+
+        min = Math.Max(0, min);
+        max = Math.Min(127, max);
+
+        if (max < min)
+        {
+            return (_settings.PitchLow, _settings.PitchHigh);
+        }
+
+        return (min, max);
+    }
+
+    private static double CalculateLaneHeight(int pitchCount)
+    {
+        var height = pitchCount * PianoRollSettings.PitchRowHeight;
+        return height < PianoRollSettings.MinLaneHeight ? PianoRollSettings.MinLaneHeight : height;
     }
 
     #endregion
@@ -421,12 +476,15 @@ public class PianoRollPanel : FrameworkElement
         if (OverlayMode)
         {
             // Single lane with all notes overlaid
+            var (pitchLow, pitchHigh) = GetLanePitchRange(_allNotes);
             var layout = new LaneLayout
             {
                 Id = new LaneId(0, 0),
                 TrackName = "All Tracks (Overlay)",
                 YOffset = 0,
-                Height = ActualHeight > 0 ? ActualHeight : 600
+                Height = ActualHeight > 0 ? ActualHeight : 600,
+                PitchLow = pitchLow,
+                PitchHigh = pitchHigh
             };
 
             layout.Notes.AddRange(_allNotes);
@@ -439,21 +497,28 @@ public class PianoRollPanel : FrameworkElement
             var sortedLanes = notesByLane.Keys.OrderBy(l => l.TrackIndex).ThenBy(l => l.Channel).ToList();
 
             var yOffset = 0.0;
-            var laneHeight = _settings.CalculateLaneHeight();
 
             foreach (var laneId in sortedLanes)
             {
                 var trackName = laneId.TrackIndex < _tracks.Count ? _tracks[laneId.TrackIndex].Name : null;
+                var laneNotes = notesByLane[laneId];
+                var (pitchLow, pitchHigh) = GetLanePitchRange(laneNotes);
+                var pitchCount = pitchHigh - pitchLow + 1;
+                var laneHeight = CompactPitchRange
+                    ? CalculateLaneHeight(pitchCount)
+                    : _settings.CalculateLaneHeight();
 
                 var layout = new LaneLayout
                 {
                     Id = laneId,
                     TrackName = trackName,
                     YOffset = yOffset,
-                    Height = laneHeight
+                    Height = laneHeight,
+                    PitchLow = pitchLow,
+                    PitchHigh = pitchHigh
                 };
 
-                layout.Notes.AddRange(notesByLane[laneId]);
+                layout.Notes.AddRange(laneNotes);
                 _lanes.Add(layout);
 
                 yOffset += laneHeight + PianoRollSettings.LaneGap;
@@ -618,12 +683,12 @@ public class PianoRollPanel : FrameworkElement
 
     private void RenderPitchGrid(DrawingContext dc, LaneLayout lane)
     {
-        var pitchCount = _settings.PitchCount;
+        var pitchCount = lane.PitchCount;
         var rowHeight = lane.Height / pitchCount;
 
-        for (var pitch = _settings.PitchLow; pitch <= _settings.PitchHigh; pitch++)
+        for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
         {
-            var relPitch = pitch - _settings.PitchLow;
+            var relPitch = pitch - lane.PitchLow;
             var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
 
             // Emphasize octave lines (C notes)
@@ -660,7 +725,7 @@ public class PianoRollPanel : FrameworkElement
         double rightTime,
         double pixelsPerSecond)
     {
-        var pitchCount = _settings.PitchCount;
+        var pitchCount = lane.PitchCount;
         var rowHeight = lane.Height / pitchCount;
         var useTrackColors = OverlayMode;
 
@@ -673,7 +738,7 @@ public class PianoRollPanel : FrameworkElement
             if (noteEndSec < leftTime || noteStartSec > rightTime) continue;
 
             // Skip notes outside pitch range
-            if (note.NoteNumber < _settings.PitchLow || note.NoteNumber > _settings.PitchHigh) continue;
+            if (note.NoteNumber < lane.PitchLow || note.NoteNumber > lane.PitchHigh) continue;
 
             // Calculate X coordinates
             var x1 = PianoRollSettings.LaneHeaderWidth + (noteStartSec - leftTime) * pixelsPerSecond;
@@ -686,7 +751,7 @@ public class PianoRollPanel : FrameworkElement
             if (x2 <= x1) continue;
 
             // Calculate Y coordinate (inverted: low pitches at bottom)
-            var relPitch = note.NoteNumber - _settings.PitchLow;
+            var relPitch = note.NoteNumber - lane.PitchLow;
             var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
 
             var rect = new Rect(x1, y + 1, x2 - x1, rowHeight - 2);
@@ -785,7 +850,7 @@ public class PianoRollPanel : FrameworkElement
 
     private void RenderNoteNamesForLane(DrawingContext dc, LaneLayout lane)
     {
-        var pitchCount = _settings.PitchCount;
+        var pitchCount = lane.PitchCount;
         var rowHeight = lane.Height / pitchCount;
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         var rightEdge = PianoRollSettings.LaneHeaderWidth - 2;
@@ -793,9 +858,9 @@ public class PianoRollPanel : FrameworkElement
         // Calculate font size to fit within row height (leave some padding)
         var fontSize = Math.Max(6, Math.Min(rowHeight * 0.9, 10));
 
-        for (var pitch = _settings.PitchLow; pitch <= _settings.PitchHigh; pitch++)
+        for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
         {
-            var relPitch = pitch - _settings.PitchLow;
+            var relPitch = pitch - lane.PitchLow;
             var noteY = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
 
             // Use short note name format

@@ -51,6 +51,11 @@ public sealed class AppSettings
     public bool ShowNoteNames { get; set; }
 
     /// <summary>
+    /// Whether lane pitch ranges are compacted to used notes plus margin.
+    /// </summary>
+    public bool CompactPitchRange { get; set; }
+
+    /// <summary>
     /// Whether overlay mode is enabled (all tracks on single lane with track colors).
     /// </summary>
     public bool OverlayMode { get; set; }

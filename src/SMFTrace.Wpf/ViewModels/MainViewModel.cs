@@ -30,6 +30,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
     private bool _showNoteNames;
+    private bool _compactPitchRange;
     private bool _overlayMode;
     private PlaybackState _playbackState = PlaybackState.Stopped;
     private MidiDeviceInfo? _selectedDevice;
@@ -83,6 +84,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _showTempo = s.ShowTempo;
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
         _showNoteNames = s.ShowNoteNames;
+        _compactPitchRange = s.CompactPitchRange;
         _overlayMode = s.OverlayMode;
 
         // Apply diagnostics filter states
@@ -102,6 +104,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.ShowTempo = ShowTempo;
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
         s.ShowNoteNames = ShowNoteNames;
+        s.CompactPitchRange = CompactPitchRange;
         s.OverlayMode = OverlayMode;
         s.LastDeviceName = SelectedDevice?.Name;
 
@@ -180,6 +183,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _showNoteNames;
         set => SetField(ref _showNoteNames, value);
+    }
+
+    public bool CompactPitchRange
+    {
+        get => _compactPitchRange;
+        set => SetField(ref _compactPitchRange, value);
     }
 
     public bool OverlayMode
