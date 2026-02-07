@@ -195,6 +195,24 @@ public partial class MainWindow : Window
         }
     }
 
+    public void OpenFileFromCommandLine(string filePath)
+    {
+        if (IsMidiFile(filePath))
+        {
+            if (_viewModel.CanStop)
+            {
+                _viewModel.StopCommand.Execute(null);
+            }
+
+            _viewModel.LoadFile(filePath);
+
+            if (_viewModel.CanPlay)
+            {
+                _viewModel.PlayCommand.Execute(null);
+            }
+        }
+    }
+
     private static bool IsMidiFile(string filePath)
     {
         var ext = Path.GetExtension(filePath);
