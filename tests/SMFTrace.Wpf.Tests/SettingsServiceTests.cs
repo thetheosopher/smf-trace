@@ -120,7 +120,6 @@ public class SettingsServiceTests : IDisposable
         service.Current.DiagShowNotes = false;
         service.Current.DiagShowControlChanges = false;
         service.Current.DiagMetaOnlyMode = true;
-        service.Current.DiagAutoScrollEnabled = false;
 
         // Act
         service.Save();
@@ -132,7 +131,6 @@ public class SettingsServiceTests : IDisposable
         Assert.False(service2.Current.DiagShowNotes);
         Assert.False(service2.Current.DiagShowControlChanges);
         Assert.True(service2.Current.DiagMetaOnlyMode);
-        Assert.False(service2.Current.DiagAutoScrollEnabled);
     }
 
     [Fact]

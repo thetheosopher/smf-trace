@@ -204,41 +204,4 @@ public class DiagnosticsViewModelTests
         Assert.Contains("Note On", detail);
         Assert.Contains("Tick: 0", detail);
     }
-
-    [Fact]
-    public void AutoScrollEnabledByDefault()
-    {
-        // Arrange
-        var vm = new DiagnosticsViewModel();
-
-        // Assert
-        Assert.True(vm.AutoScrollEnabled);
-    }
-
-    [Fact]
-    public void DisableAutoScrollSetsFlag()
-    {
-        // Arrange
-        var vm = new DiagnosticsViewModel();
-
-        // Act
-        vm.DisableAutoScroll();
-
-        // Assert
-        Assert.False(vm.AutoScrollEnabled);
-    }
-
-    [Fact]
-    public void ReEnableAutoScrollSetsFlag()
-    {
-        // Arrange
-        var vm = new DiagnosticsViewModel();
-        vm.DisableAutoScroll();
-
-        // Act
-        vm.ReEnableAutoScroll();
-
-        // Assert
-        Assert.True(vm.AutoScrollEnabled);
-    }
 }

@@ -36,6 +36,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private MidiDeviceInfo? _selectedDevice;
     private bool _isFileLoaded;
     private ChannelState[] _channelStates = new ChannelState[16];
+    private double _currentTempo = 120.0;
 
     /// <summary>Diagnostics tab view model.</summary>
     public DiagnosticsViewModel Diagnostics { get; } = new();
@@ -88,7 +89,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         Diagnostics.ShowNotes = s.DiagShowNotes;
         Diagnostics.ShowControlChanges = s.DiagShowControlChanges;
         Diagnostics.ShowProgramChanges = s.DiagShowProgramChanges;
-        Diagnostics.AutoScrollEnabled = s.DiagAutoScrollEnabled;
         Diagnostics.MetaOnlyMode = s.DiagMetaOnlyMode;
     }
 
@@ -110,7 +110,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.DiagShowNotes = Diagnostics.ShowNotes;
         s.DiagShowControlChanges = Diagnostics.ShowControlChanges;
         s.DiagShowProgramChanges = Diagnostics.ShowProgramChanges;
-        s.DiagAutoScrollEnabled = Diagnostics.AutoScrollEnabled;
         s.DiagMetaOnlyMode = Diagnostics.MetaOnlyMode;
 
         _settings.Save();
@@ -206,10 +205,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(CanPlay));
                 OnPropertyChanged(nameof(CanPause));
                 OnPropertyChanged(nameof(CanStop));
+                OnPropertyChanged(nameof(IsPlaying));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
     }
+
+    /// <summary>
+    /// Whether playback is currently active (for smooth scrolling).
+    /// </summary>
+    public bool IsPlaying => PlaybackState == PlaybackState.Playing;
 
     public ObservableCollection<MidiDeviceInfo> Devices { get; } = [];
 
@@ -229,6 +234,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _isFileLoaded;
         private set => SetField(ref _isFileLoaded, value);
+    }
+
+    public double CurrentTempo
+    {
+        get => _currentTempo;
+        private set => SetField(ref _currentTempo, value);
     }
 
     public IReadOnlyList<MidiEventBase> Events => _fileData?.Events ?? [];
@@ -294,6 +305,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             // Initialize channel states
             _channelStates = _snapshotBuilder.RebuildStateAtTick(0);
+
+            // Initialize tempo from start of file
+            if (_fileData.TempoMap != null)
+            {
+                var tempo = _fileData.TempoMap.GetTempoAtTime(new Melanchall.DryWetMidi.Interaction.MidiTimeSpan(0));
+                CurrentTempo = tempo.BeatsPerMinute;
+            }
+            else
+            {
+                CurrentTempo = 120.0; // Default MIDI tempo
+            }
 
             // Load events into diagnostics view
             Diagnostics.LoadEvents(_fileData.Events);
@@ -458,6 +480,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             // Update diagnostics current tick for auto-scroll
             Diagnostics.CurrentTick = e.Tick;
+
+            // Update current tempo from tempo map
+            if (_fileData?.TempoMap != null)
+            {
+                var tempo = _fileData.TempoMap.GetTempoAtTime(new Melanchall.DryWetMidi.Interaction.MidiTimeSpan(e.Tick));
+                CurrentTempo = tempo.BeatsPerMinute;
+            }
 
             // Periodically update channel states
             if (_snapshotBuilder != null)

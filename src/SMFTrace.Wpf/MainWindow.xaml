@@ -18,6 +18,69 @@
             <Setter Property="Padding" Value="8,4"/>
             <Setter Property="Margin" Value="2"/>
             <Setter Property="MinWidth" Value="60"/>
+            <Setter Property="Background" Value="#3C3C3C"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#505050"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#2A2A2A"/>
+                                <Setter Property="Foreground" Value="#666"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox" x:Key="DarkComboBoxStyle">
+            <Setter Property="Background" Value="#3C3C3C"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+        </Style>
+
+        <Style TargetType="CheckBox" x:Key="DarkCheckBoxStyle">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="4,0"/>
+        </Style>
+
+        <Style TargetType="ToolBar">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolBar">
+                        <Border Background="{TemplateBinding Background}" BorderThickness="0">
+                            <ToolBarPanel IsItemsHost="True"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Separator" x:Key="{x:Static ToolBar.SeparatorStyleKey}">
+            <Setter Property="Background" Value="#555"/>
+            <Setter Property="Width" Value="1"/>
+            <Setter Property="Margin" Value="6,4"/>
         </Style>
     </Window.Resources>
 
@@ -42,24 +105,25 @@
                           SelectedItem="{Binding SelectedDevice}"
                           DisplayMemberPath="Name"
                           Width="200"
-                          Margin="4,0"/>
+                          Margin="4,0"
+                          Style="{StaticResource DarkComboBoxStyle}"/>
             </ToolBar>
             <ToolBar Background="#2D2D30" Band="0" BandIndex="1">
                 <TextBlock Text="Zoom:" VerticalAlignment="Center" Foreground="White" Margin="4,0"/>
-                <Button Content="+" Command="{Binding ZoomInCommand}" Width="30"/>
-                <Button Content="-" Command="{Binding ZoomOutCommand}" Width="30"/>
+                <Button Content="+" Command="{Binding ZoomInCommand}" Width="30" Style="{StaticResource ToolbarButtonStyle}" MinWidth="30"/>
+                <Button Content="-" Command="{Binding ZoomOutCommand}" Width="30" Style="{StaticResource ToolbarButtonStyle}" MinWidth="30"/>
                 <Separator/>
-                <CheckBox Content="Tempo" IsChecked="{Binding ShowTempo}" Foreground="White" VerticalAlignment="Center" Margin="4,0"/>
-                <CheckBox Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Foreground="White" VerticalAlignment="Center" Margin="4,0"/>
-                <CheckBox Content="Overlay" IsChecked="{Binding OverlayMode}" Foreground="White" VerticalAlignment="Center" Margin="4,0" ToolTip="Overlay all tracks with distinct colors"/>
+                <CheckBox Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource DarkCheckBoxStyle}"/>
+                <CheckBox Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource DarkCheckBoxStyle}"/>
+                <CheckBox Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Overlay all tracks with distinct colors"/>
                 <Separator/>
                 <TextBlock Text="FPS:" VerticalAlignment="Center" Foreground="White" Margin="4,0"/>
-                <ComboBox SelectedItem="{Binding TargetFps}" Width="50" Margin="4,0">
+                <ComboBox SelectedItem="{Binding TargetFps}" Width="50" Margin="4,0" Style="{StaticResource DarkComboBoxStyle}">
                     <ComboBoxItem Content="60"/>
                     <ComboBoxItem Content="30"/>
                 </ComboBox>
                 <Separator/>
-                <CheckBox Content="Disable SysEx Output" IsChecked="{Binding DisableSysExOutput}" Foreground="White" VerticalAlignment="Center" Margin="4,0"/>
+                <CheckBox Content="Disable SysEx Output" IsChecked="{Binding DisableSysExOutput}" Style="{StaticResource DarkCheckBoxStyle}"/>
             </ToolBar>
         </ToolBarTray>
 
@@ -73,7 +137,8 @@
                                              WindowSeconds="{Binding WindowSeconds, Mode=TwoWay}"
                                              ShowTempo="{Binding ShowTempo}"
                                              ShowBarsBeatsGrid="{Binding ShowBarsBeatsGrid}"
-                                             OverlayMode="{Binding OverlayMode}"/>
+                                             OverlayMode="{Binding OverlayMode}"
+                                             IsPlaying="{Binding IsPlaying}"/>
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Diagnostics">

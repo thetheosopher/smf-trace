@@ -15,7 +15,6 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
     private IReadOnlyList<MidiEventBase> _allEvents = [];
     private ObservableCollection<DiagnosticEventViewModel> _filteredEvents = [];
     private DiagnosticEventViewModel? _selectedEvent;
-    private bool _autoScrollEnabled = true;
     private long _currentTick;
 
     // Filters
@@ -55,22 +54,10 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
 
     public bool HasSelection => _selectedEvent != null;
 
-    public bool AutoScrollEnabled
-    {
-        get => _autoScrollEnabled;
-        set => SetField(ref _autoScrollEnabled, value);
-    }
-
     public long CurrentTick
     {
         get => _currentTick;
-        set
-        {
-            if (SetField(ref _currentTick, value) && _autoScrollEnabled)
-            {
-                ScrollToCurrentTick();
-            }
-        }
+        set => SetField(ref _currentTick, value);
     }
 
     #region Filters
@@ -210,22 +197,6 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Re-enables auto-scroll (called when user clicks in the list).
-    /// </summary>
-    public void ReEnableAutoScroll()
-    {
-        AutoScrollEnabled = true;
-    }
-
-    /// <summary>
-    /// Disables auto-scroll (called when user manually scrolls).
-    /// </summary>
-    public void DisableAutoScroll()
-    {
-        AutoScrollEnabled = false;
-    }
-
-    /// <summary>
     /// Clears all filters and shows all events.
     /// </summary>
     public void ClearFilters()
@@ -306,25 +277,6 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
         return true;
     }
 
-    private void ScrollToCurrentTick()
-    {
-        // Find the first event at or after the current tick
-        var targetIndex = -1;
-        for (var i = 0; i < _filteredEvents.Count; i++)
-        {
-            if (_filteredEvents[i].Tick >= _currentTick)
-            {
-                targetIndex = i;
-                break;
-            }
-        }
-
-        if (targetIndex >= 0)
-        {
-            ScrollToIndexRequested?.Invoke(this, targetIndex);
-        }
-    }
-
     private static string GetControllerName(byte cc) => cc switch
     {
         0 => "Bank Select MSB",
@@ -353,15 +305,6 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
         123 => "All Notes Off",
         _ => $"CC {cc}"
     };
-
-    #endregion
-
-    #region Events
-
-    /// <summary>
-    /// Raised when the list should scroll to a specific index.
-    /// </summary>
-    public event EventHandler<int>? ScrollToIndexRequested;
 
     #endregion
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
 using SMFTrace.Core.Models;
@@ -17,7 +18,14 @@ public class PianoRollPanel : FrameworkElement
             nameof(CurrentTime),
             typeof(TimeSpan),
             typeof(PianoRollPanel),
-            new FrameworkPropertyMetadata(TimeSpan.Zero, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(TimeSpan.Zero, FrameworkPropertyMetadataOptions.AffectsRender, OnCurrentTimeChanged));
+
+    public static readonly DependencyProperty IsPlayingProperty =
+        DependencyProperty.Register(
+            nameof(IsPlaying),
+            typeof(bool),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(false, OnIsPlayingChanged));
 
     public static readonly DependencyProperty TotalDurationProperty =
         DependencyProperty.Register(
@@ -64,6 +72,12 @@ public class PianoRollPanel : FrameworkElement
         set => SetValue(CurrentTimeProperty, value);
     }
 
+    public bool IsPlaying
+    {
+        get => (bool)GetValue(IsPlayingProperty);
+        set => SetValue(IsPlayingProperty, value);
+    }
+
     public TimeSpan TotalDuration
     {
         get => (TimeSpan)GetValue(TotalDurationProperty);
@@ -99,6 +113,29 @@ public class PianoRollPanel : FrameworkElement
         // Trigger re-render
     }
 
+    private static void OnCurrentTimeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel.SyncPosition((TimeSpan)e.NewValue);
+        }
+    }
+
+    private static void OnIsPlayingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            if ((bool)e.NewValue)
+            {
+                panel.StartSmoothScrolling();
+            }
+            else
+            {
+                panel.StopSmoothScrolling();
+            }
+        }
+    }
+
     private static void OnOverlayModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is PianoRollPanel panel)
@@ -127,11 +164,20 @@ public class PianoRollPanel : FrameworkElement
     private readonly DrawingVisual _notesVisual;
     private readonly DrawingVisual _playheadVisual;
     private readonly DrawingVisual _laneHeadersVisual;
+    private readonly DrawingVisual _tempoVisual;
 
     private readonly PianoRollSettings _settings = new();
     private List<LaneLayout> _lanes = [];
     private List<PairedNote> _allNotes = [];
     private IReadOnlyList<TrackInfo> _tracks = [];
+    private double _currentTempo = 120.0; // BPM
+    private ChannelState[] _channelStates = new ChannelState[16]; // Cached for lane rebuilds
+
+    // Smooth scrolling fields
+    private readonly Stopwatch _smoothScrollStopwatch = new();
+    private TimeSpan _syncPosition; // Last known position from sequencer
+    private bool _isSmoothScrolling;
+    private TimeSpan _interpolatedTime; // Current interpolated position for rendering
 
     // Cached resources
     private static readonly Pen PlayheadPen;
@@ -186,14 +232,82 @@ public class PianoRollPanel : FrameworkElement
         _notesVisual = new DrawingVisual();
         _playheadVisual = new DrawingVisual();
         _laneHeadersVisual = new DrawingVisual();
+        _tempoVisual = new DrawingVisual();
 
         _visuals.Add(_backgroundVisual);
         _visuals.Add(_gridVisual);
         _visuals.Add(_notesVisual);
         _visuals.Add(_playheadVisual);
         _visuals.Add(_laneHeadersVisual);
+        _visuals.Add(_tempoVisual);
+
+        // Initialize channel states with defaults
+        for (var i = 0; i < 16; i++)
+        {
+            _channelStates[i] = new ChannelState();
+        }
 
         ClipToBounds = true;
+
+        // Ensure cleanup when unloaded
+        Unloaded += (_, _) => StopSmoothScrolling();
+    }
+
+    #endregion
+
+    #region Smooth Scrolling
+
+    /// <summary>
+    /// Gets the effective time to use for rendering (interpolated when playing, actual when stopped).
+    /// </summary>
+    private TimeSpan RenderTime => _isSmoothScrolling ? _interpolatedTime : CurrentTime;
+
+    private void SyncPosition(TimeSpan newPosition)
+    {
+        _syncPosition = newPosition;
+        _smoothScrollStopwatch.Restart();
+
+        if (!_isSmoothScrolling)
+        {
+            _interpolatedTime = newPosition;
+        }
+    }
+
+    private void StartSmoothScrolling()
+    {
+        if (_isSmoothScrolling) return;
+
+        _isSmoothScrolling = true;
+        _syncPosition = CurrentTime;
+        _interpolatedTime = CurrentTime;
+        _smoothScrollStopwatch.Restart();
+        CompositionTarget.Rendering += OnCompositionTargetRendering;
+    }
+
+    private void StopSmoothScrolling()
+    {
+        if (!_isSmoothScrolling) return;
+
+        _isSmoothScrolling = false;
+        CompositionTarget.Rendering -= OnCompositionTargetRendering;
+        _smoothScrollStopwatch.Stop();
+        InvalidateVisual();
+    }
+
+    private void OnCompositionTargetRendering(object? sender, EventArgs e)
+    {
+        // Interpolate position based on elapsed time since last sync
+        var elapsed = _smoothScrollStopwatch.Elapsed;
+        _interpolatedTime = _syncPosition + elapsed;
+
+        // Clamp to duration
+        if (_interpolatedTime > TotalDuration)
+        {
+            _interpolatedTime = TotalDuration;
+        }
+
+        // Trigger a render
+        InvalidateVisual();
     }
 
     #endregion
@@ -316,6 +430,9 @@ public class PianoRollPanel : FrameworkElement
             }
         }
 
+        // Reapply instrument names from cached channel states
+        ApplyInstrumentNames();
+
         InvalidateMeasure();
         InvalidateVisual();
     }
@@ -325,15 +442,31 @@ public class PianoRollPanel : FrameworkElement
     /// </summary>
     public void UpdateInstrumentNames(ChannelState[] channelStates)
     {
+        _channelStates = channelStates;
+        ApplyInstrumentNames();
+    }
+
+    private void ApplyInstrumentNames()
+    {
         foreach (var lane in _lanes)
         {
-            if (lane.Id.Channel < channelStates.Length)
+            if (lane.Id.Channel < _channelStates.Length)
             {
-                lane.InstrumentName = channelStates[lane.Id.Channel].InstrumentDisplayName;
+                lane.InstrumentName = _channelStates[lane.Id.Channel].InstrumentDisplayName;
             }
         }
 
         InvalidateLaneHeaders();
+    }
+
+    /// <summary>
+    /// Updates the current tempo display.
+    /// </summary>
+    /// <param name="bpm">Tempo in beats per minute.</param>
+    public void UpdateTempo(double bpm)
+    {
+        _currentTempo = bpm;
+        InvalidateVisual();
     }
 
     /// <summary>
@@ -365,6 +498,7 @@ public class PianoRollPanel : FrameworkElement
         RenderNotes();
         RenderPlayhead();
         RenderLaneHeaders();
+        RenderTempoDisplay();
     }
 
     private void RenderBackground()
@@ -386,16 +520,20 @@ public class PianoRollPanel : FrameworkElement
 
     private void RenderGrid()
     {
-        if (!ShowBarsBeatsGrid) return;
-
         using var dc = _gridVisual.RenderOpen();
+
+        if (!ShowBarsBeatsGrid)
+        {
+            // Clear the visual by just opening and closing the context
+            return;
+        }
 
         var viewWidth = ActualWidth - PianoRollSettings.LaneHeaderWidth;
         var playheadX = PianoRollSettings.LaneHeaderWidth + viewWidth * PianoRollSettings.PlayheadPosition;
         var pixelsPerSecond = viewWidth / WindowSeconds;
 
         // Time at left edge of view
-        var leftTime = CurrentTime.TotalSeconds - WindowSeconds * PianoRollSettings.PlayheadPosition;
+        var leftTime = RenderTime.TotalSeconds - WindowSeconds * PianoRollSettings.PlayheadPosition;
         var rightTime = leftTime + WindowSeconds;
 
         // Draw vertical time grid lines (every second for now, adjust based on zoom)
@@ -447,7 +585,7 @@ public class PianoRollPanel : FrameworkElement
         var pixelsPerSecond = viewWidth / WindowSeconds;
 
         // Time at left edge of view
-        var leftTime = CurrentTime.TotalSeconds - WindowSeconds * PianoRollSettings.PlayheadPosition;
+        var leftTime = RenderTime.TotalSeconds - WindowSeconds * PianoRollSettings.PlayheadPosition;
         var rightTime = leftTime + WindowSeconds;
 
         foreach (var lane in _lanes)
@@ -651,6 +789,48 @@ public class PianoRollPanel : FrameworkElement
     private void InvalidateLaneHeaders()
     {
         RenderLaneHeaders();
+    }
+
+    private void RenderTempoDisplay()
+    {
+        using var dc = _tempoVisual.RenderOpen();
+
+        if (!ShowTempo)
+        {
+            // Clear the visual
+            return;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+
+        // Draw tempo badge in top-right corner
+        var tempoText = $"{_currentTempo:F1} BPM";
+        var formattedText = new FormattedText(
+            tempoText,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            LabelTypeface,
+            14,
+            Brushes.White,
+            dpi);
+
+        var padding = 8.0;
+        var badgeWidth = formattedText.Width + padding * 2;
+        var badgeHeight = formattedText.Height + padding;
+        var x = ActualWidth - badgeWidth - 10;
+        var y = 10.0;
+
+        // Background with slight transparency
+        var badgeBrush = new SolidColorBrush(Color.FromArgb(200, 60, 60, 65));
+        badgeBrush.Freeze();
+        dc.DrawRoundedRectangle(
+            badgeBrush,
+            null,
+            new Rect(x, y, badgeWidth, badgeHeight),
+            4, 4);
+
+        // Text
+        dc.DrawText(formattedText, new Point(x + padding, y + padding / 2));
     }
 
     private static double CalculateGridInterval(double pixelsPerSecond)

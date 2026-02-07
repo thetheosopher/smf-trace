@@ -133,7 +133,7 @@ public class NoteEventTests
         };
 
         Assert.True(state.HasProgramChange);
-        Assert.Equal("Program 42", state.InstrumentDisplayName);
+        Assert.Equal("Cello", state.InstrumentDisplayName); // Program 42 = Cello in GM
     }
 
     [Fact]

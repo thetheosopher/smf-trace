@@ -50,10 +50,6 @@
                 <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                          Width="150"
                          VerticalAlignment="Center"/>
-
-                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="8,0"/>
-
-                <CheckBox Content="Auto-scroll" IsChecked="{Binding AutoScrollEnabled}" Style="{StaticResource FilterCheckBoxStyle}"/>
             </WrapPanel>
         </Border>
 
@@ -88,9 +84,7 @@
                       AlternatingRowBackground="#252526"
                       BorderThickness="0"
                       FontFamily="Consolas"
-                      FontSize="12"
-                      PreviewMouseDown="EventList_PreviewMouseDown"
-                      ScrollViewer.ScrollChanged="EventList_ScrollChanged">
+                      FontSize="12">
 
                 <DataGrid.ColumnHeaderStyle>
                     <Style TargetType="DataGridColumnHeader">
@@ -101,6 +95,17 @@
                         <Setter Property="BorderBrush" Value="#555"/>
                     </Style>
                 </DataGrid.ColumnHeaderStyle>
+
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                <Setter Property="Background" Value="#4A6B3A"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
 
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="50"/>

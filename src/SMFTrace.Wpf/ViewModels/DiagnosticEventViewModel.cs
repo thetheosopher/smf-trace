@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using SMFTrace.Core.Models;
 
 namespace SMFTrace.Wpf.ViewModels;
@@ -7,9 +9,10 @@ namespace SMFTrace.Wpf.ViewModels;
 /// Wrapped MIDI event for display in the diagnostics list.
 /// </summary>
 #pragma warning disable CA1711 // Identifiers should not have incorrect suffix
-public sealed class DiagnosticEventViewModel
+public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
 #pragma warning restore CA1711
 {
+    private bool _isCurrent;
     private readonly MidiEventBase _event;
 
     public DiagnosticEventViewModel(MidiEventBase evt, int index)
@@ -98,6 +101,27 @@ public sealed class DiagnosticEventViewModel
         SysExEvent => EventCategory.SysExCategory,
         _ => EventCategory.Other
     };
+
+    /// <summary>Whether this event is at the current playback position.</summary>
+    public bool IsCurrent
+    {
+        get => _isCurrent;
+        set
+        {
+            if (_isCurrent != value)
+            {
+                _isCurrent = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 
     private static string NoteNumberToName(byte noteNumber)
     {

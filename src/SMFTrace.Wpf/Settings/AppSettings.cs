@@ -98,9 +98,4 @@ public sealed class AppSettings
     /// Meta-only mode in diagnostics.
     /// </summary>
     public bool DiagMetaOnlyMode { get; set; }
-
-    /// <summary>
-    /// Auto-scroll enabled in diagnostics.
-    /// </summary>
-    public bool DiagAutoScrollEnabled { get; set; } = true;
 }

@@ -102,11 +102,18 @@ public partial class MainWindow : Window
             case nameof(MainViewModel.Tracks):
                 // Reload notes in piano roll
                 PianoRoll.LoadNotes(_viewModel.Events, _viewModel.Tracks);
+                // Also update instrument names since lanes were rebuilt
+                PianoRoll.UpdateInstrumentNames(_viewModel.ChannelStates);
                 break;
 
             case nameof(MainViewModel.ChannelStates):
                 // Update instrument names
                 PianoRoll.UpdateInstrumentNames(_viewModel.ChannelStates);
+                break;
+
+            case nameof(MainViewModel.CurrentTempo):
+                // Update tempo display
+                PianoRoll.UpdateTempo(_viewModel.CurrentTempo);
                 break;
         }
     }
