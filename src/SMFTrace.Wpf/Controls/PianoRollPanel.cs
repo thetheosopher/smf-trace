@@ -310,7 +310,7 @@ public class PianoRollPanel : FrameworkElement
         PianoActiveWhiteGlowBrush = new SolidColorBrush(Color.FromArgb(140, 230, 180, 60));
         PianoActiveWhiteGlowBrush.Freeze();
 
-        PianoActiveBlackGlowBrush = new SolidColorBrush(Color.FromArgb(140, 230, 180, 60));
+        PianoActiveBlackGlowBrush = new SolidColorBrush(Color.FromArgb(200, 240, 190, 70));
         PianoActiveBlackGlowBrush.Freeze();
 
         PianoActiveBlackBrush = new SolidColorBrush(Color.FromRgb(60, 160, 95));
@@ -1046,7 +1046,7 @@ public class PianoRollPanel : FrameworkElement
         var keyWidth = PianoRollSettings.PianoKeyWidth;
         var blackKeyWidth = keyWidth * 0.6;
         var blackKeyHeight = rowHeight * 0.6;
-        var blackKeyX = keyLeft + keyWidth - blackKeyWidth;
+        var blackKeyX = keyLeft;
 
         Span<bool> activeNotes = stackalloc bool[128];
         BuildActiveNotes(lane, renderTime, activeNotes);
@@ -1099,7 +1099,7 @@ public class PianoRollPanel : FrameworkElement
             var brush = isActive ? PianoActiveBlackBrush : PianoBlackBrush;
             if (isActive)
             {
-                var glowRect = new Rect(rect.X - 1, rect.Y - 1, rect.Width + 2, rect.Height + 2);
+                var glowRect = new Rect(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
                 dc.DrawRectangle(PianoActiveBlackGlowBrush, null, glowRect);
             }
             dc.DrawRectangle(brush, null, rect);
