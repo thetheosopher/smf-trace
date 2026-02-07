@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -33,6 +34,8 @@ public partial class MainWindow : Window
         SizeChanged += OnSizeChanged;
         LocationChanged += OnLocationChanged;
         PreviewKeyDown += OnPreviewKeyDown;
+        DragOver += OnDragOver;
+        Drop += OnDrop;
     }
 
     private void ApplyWindowSettings()
@@ -151,5 +154,40 @@ public partial class MainWindow : Window
             }
             e.Handled = true;
         }
+    }
+
+    private void OnDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = DragDropEffects.None;
+
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+            if (files?.Length == 1 && IsMidiFile(files[0]))
+            {
+                e.Effects = DragDropEffects.Copy;
+            }
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnDrop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+            if (files?.Length >= 1 && IsMidiFile(files[0]))
+            {
+                _viewModel.LoadFile(files[0]);
+            }
+        }
+    }
+
+    private static bool IsMidiFile(string filePath)
+    {
+        var ext = Path.GetExtension(filePath);
+        return ext.Equals(".mid", StringComparison.OrdinalIgnoreCase) ||
+               ext.Equals(".midi", StringComparison.OrdinalIgnoreCase);
     }
 }
