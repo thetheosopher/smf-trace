@@ -84,6 +84,15 @@ public sealed class SequencerEngine : IDisposable
         get { lock (_lock) return _currentTime; }
     }
 
+    /// <summary>
+    /// Whether playback should loop at end of file.
+    /// </summary>
+    public bool LoopPlayback
+    {
+        get { lock (_lock) return _options.LoopPlayback; }
+        set { lock (_lock) _options.LoopPlayback = value; }
+    }
+
     /// <summary>Total duration of the file.</summary>
     public TimeSpan Duration => _fileData.Duration;
 
@@ -342,16 +351,40 @@ public sealed class SequencerEngine : IDisposable
             MidiEventBase? nextEvent;
             TimeSpan eventTime;
             int eventIndex;
+            bool shouldStop = false;
+            bool shouldLoop = false;
 
             lock (_lock)
             {
                 if (_currentEventIndex >= _fileData.Events.Count)
                 {
                     // End of file
-                    Stop();
-                    return;
+                    if (_options.LoopPlayback)
+                    {
+                        shouldLoop = true;
+                    }
+                    else
+                    {
+                        shouldStop = true;
+                    }
                 }
+            }
 
+            if (shouldStop)
+            {
+                Stop();
+                return;
+            }
+
+            if (shouldLoop)
+            {
+                ResetForLoop(stopwatch);
+                startTime = TimeSpan.Zero;
+                continue;
+            }
+
+            lock (_lock)
+            {
                 nextEvent = _fileData.Events[_currentEventIndex];
                 eventTime = nextEvent.Time;
                 eventIndex = _currentEventIndex;
@@ -419,6 +452,25 @@ public sealed class SequencerEngine : IDisposable
             _lastPositionUpdate = stopwatch.Elapsed;
             RaisePositionChanged();
         }
+    }
+
+    private void ResetForLoop(Stopwatch stopwatch)
+    {
+        lock (_lock)
+        {
+            _output?.AllNotesOff();
+            _currentEventIndex = 0;
+            _currentTick = 0;
+            _currentTime = TimeSpan.Zero;
+
+            var channelStates = _snapshotBuilder.RebuildStateAtTick(0);
+            EmitStateToDevice(channelStates);
+
+            _lastPositionUpdate = TimeSpan.Zero;
+            RaisePositionChanged();
+        }
+
+        stopwatch.Restart();
     }
 
     private void DispatchEvent(MidiEventBase evt)

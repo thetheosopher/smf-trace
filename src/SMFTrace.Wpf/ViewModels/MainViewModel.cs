@@ -29,6 +29,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private double _windowSeconds = 30.0;
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
+    private bool _loopPlayback;
     private bool _showNoteNames;
     private bool _showPianoKeys;
     private bool _compactPitchRange;
@@ -84,6 +85,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _windowSeconds = s.PianoRollWindowSeconds;
         _showTempo = s.ShowTempo;
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
+        _loopPlayback = s.LoopPlayback;
         _showNoteNames = s.ShowNoteNames;
         _showPianoKeys = s.ShowPianoKeys;
         _compactPitchRange = s.CompactPitchRange;
@@ -105,6 +107,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.PianoRollWindowSeconds = WindowSeconds;
         s.ShowTempo = ShowTempo;
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
+        s.LoopPlayback = LoopPlayback;
         s.ShowNoteNames = ShowNoteNames;
         s.ShowPianoKeys = ShowPianoKeys;
         s.CompactPitchRange = CompactPitchRange;
@@ -180,6 +183,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _showBarsBeatsGrid;
         set => SetField(ref _showBarsBeatsGrid, value);
+    }
+
+    public bool LoopPlayback
+    {
+        get => _loopPlayback;
+        set
+        {
+            if (SetField(ref _loopPlayback, value) && _engine != null)
+            {
+                _engine.LoopPlayback = value;
+            }
+        }
     }
 
     public bool ShowNoteNames
@@ -309,7 +324,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _snapshotBuilder = new StateSnapshotBuilder(_fileData.Events);
 
             // Create new engine
-            _engine = new SequencerEngine(_fileData);
+            _engine = new SequencerEngine(_fileData, new SMFTrace.Core.Configuration.PlaybackOptions
+            {
+                LoopPlayback = LoopPlayback
+            });
             _engine.PositionChanged += OnPositionChanged;
             _engine.StateChanged += OnStateChanged;
 

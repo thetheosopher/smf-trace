@@ -14,4 +14,9 @@ public sealed class PlaybackOptions
     /// Whether to display bars/beats grid lines on the piano roll.
     /// </summary>
     public bool ShowBarsBeatsGrid { get; set; } = true;
+
+    /// <summary>
+    /// Whether playback should loop when it reaches the end of the file.
+    /// </summary>
+    public bool LoopPlayback { get; set; }
 }

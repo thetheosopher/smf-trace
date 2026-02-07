@@ -117,6 +117,7 @@
                 <Separator/>
                 <CheckBox Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource DarkCheckBoxStyle}"/>
                 <CheckBox Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource DarkCheckBoxStyle}"/>
+                <CheckBox Content="Loop" IsChecked="{Binding LoopPlayback}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Loop playback at end"/>
                 <CheckBox Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Show note names in lane headers"/>
                 <CheckBox Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Show piano keys in lane headers"/>
                 <CheckBox Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Compact lane pitch range to used notes"/>

@@ -46,6 +46,11 @@ public sealed class AppSettings
     public bool ShowBarsBeatsGrid { get; set; } = true;
 
     /// <summary>
+    /// Whether playback should loop at end of file.
+    /// </summary>
+    public bool LoopPlayback { get; set; }
+
+    /// <summary>
     /// Whether note names are shown in the piano roll header.
     /// </summary>
     public bool ShowNoteNames { get; set; }

@@ -165,6 +165,17 @@ public class PianoRollPanel : FrameworkElement
             {
                 panel._interpolatedTime = (TimeSpan)e.NewValue;
                 panel.InvalidateVisual();
+                return;
+            }
+
+            var newTime = (TimeSpan)e.NewValue;
+            if (newTime + TimeSpan.FromMilliseconds(10) < panel._interpolatedTime)
+            {
+                // Loop or seek while playing: resync interpolation to the new time.
+                panel._syncPosition = newTime;
+                panel._interpolatedTime = newTime;
+                panel._smoothScrollStopwatch.Restart();
+                panel.InvalidateVisual();
             }
         }
     }
