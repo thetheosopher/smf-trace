@@ -398,6 +398,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             // Stop any existing playback
             _engine?.Stop();
+            StopAllNotesOnOutput();
             _engine?.Dispose();
 
             // Load the file
@@ -484,6 +485,25 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 "Error",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    private void StopAllNotesOnOutput()
+    {
+        if (_midiOutput == null)
+        {
+            return;
+        }
+
+        try
+        {
+            _midiOutput.ResetControllers();
+            _midiOutput.AllNotesOff();
+            _midiOutput.Reset();
+        }
+        catch (MidiException)
+        {
+            // Ignore device reset errors during file load.
         }
     }
 
