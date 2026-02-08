@@ -480,11 +480,11 @@ public class PianoRollPanel : FrameworkElement
             _interpolatedTime = TotalDuration;
         }
 
-        // Throttle to 30 FPS in non-overlay mode to reduce CPU usage with complex files
+        // Throttle to 60 FPS in non-overlay mode to reduce CPU usage with complex files
         if (!OverlayMode)
         {
             var timeSinceLastRender = elapsed - _lastRenderTime;
-            if (timeSinceLastRender.TotalMilliseconds < 33.3) // ~30 FPS
+            if (timeSinceLastRender.TotalMilliseconds < 16.6) // ~60 FPS
             {
                 // Keep keyboard highlights responsive even when throttling the main render.
                 RenderLaneHeaders();
