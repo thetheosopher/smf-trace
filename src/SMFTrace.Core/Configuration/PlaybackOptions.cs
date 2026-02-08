@@ -19,4 +19,9 @@ public sealed class PlaybackOptions
     /// Whether playback should loop when it reaches the end of the file.
     /// </summary>
     public bool LoopPlayback { get; set; }
+
+    /// <summary>
+    /// Playback speed multiplier (0.05x - 4x).
+    /// </summary>
+    public double TempoMultiplier { get; set; } = 1.0;
 }

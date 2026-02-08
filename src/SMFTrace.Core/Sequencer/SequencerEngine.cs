@@ -26,6 +26,7 @@ public sealed class SequencerEngine : IDisposable
     private readonly StateSnapshotBuilder _snapshotBuilder;
     private readonly PlaybackOptions _options;
     private readonly object _lock = new();
+    private double _tempoMultiplier = 1.0;
 
     private ISequencerOutput? _output;
     private CancellationTokenSource? _playbackCts;
@@ -64,6 +65,7 @@ public sealed class SequencerEngine : IDisposable
         _fileData = fileData ?? throw new ArgumentNullException(nameof(fileData));
         _options = options ?? new PlaybackOptions();
         _snapshotBuilder = new StateSnapshotBuilder(fileData.Events);
+        _tempoMultiplier = Math.Clamp(_options.TempoMultiplier, 0.05, 4.0);
     }
 
     /// <summary>Current playback state.</summary>
@@ -91,6 +93,19 @@ public sealed class SequencerEngine : IDisposable
     {
         get { lock (_lock) return _options.LoopPlayback; }
         set { lock (_lock) _options.LoopPlayback = value; }
+    }
+
+    public double TempoMultiplier
+    {
+        get { lock (_lock) return _tempoMultiplier; }
+        set
+        {
+            var clamped = Math.Clamp(value, 0.05, 4.0);
+            lock (_lock)
+            {
+                _tempoMultiplier = clamped;
+            }
+        }
     }
 
     /// <summary>Total duration of the file.</summary>
@@ -344,6 +359,11 @@ public sealed class SequencerEngine : IDisposable
     {
         var stopwatch = Stopwatch.StartNew();
         var startTime = _currentTime;
+        var lastSpeed = 1.0;
+        lock (_lock)
+        {
+            lastSpeed = _tempoMultiplier;
+        }
         _lastPositionUpdate = TimeSpan.Zero;
 
         while (!token.IsCancellationRequested)
@@ -389,8 +409,8 @@ public sealed class SequencerEngine : IDisposable
                 eventTime = nextEvent.Time;
                 eventIndex = _currentEventIndex;
 
-                // Update current time based on elapsed
-                _currentTime = startTime + stopwatch.Elapsed;
+                var elapsed = stopwatch.Elapsed;
+                _currentTime = GetScaledTime(ref startTime, elapsed, ref lastSpeed, _tempoMultiplier);
                 _currentTick = TimeToTick(_currentTime);
             }
 
@@ -401,8 +421,13 @@ public sealed class SequencerEngine : IDisposable
                 // Use spin-wait for sub-millisecond precision, but also update position periodically
                 while (timeUntilEvent > TimeSpan.Zero && !token.IsCancellationRequested)
                 {
+                    var speed = lastSpeed;
+                    var realTimeUntilEvent = speed > 0.0001
+                        ? TimeSpan.FromTicks((long)(timeUntilEvent.Ticks / speed))
+                        : timeUntilEvent;
+
                     // Sleep for a short time, but wake up for position updates
-                    var sleepTime = Math.Min(timeUntilEvent.TotalMilliseconds, PositionUpdateInterval.TotalMilliseconds);
+                    var sleepTime = Math.Min(realTimeUntilEvent.TotalMilliseconds, PositionUpdateInterval.TotalMilliseconds);
                     if (sleepTime > 1)
                     {
                         Thread.Sleep((int)sleepTime);
@@ -415,15 +440,16 @@ public sealed class SequencerEngine : IDisposable
                     // Update current time
                     lock (_lock)
                     {
-                        _currentTime = startTime + stopwatch.Elapsed;
+                        var elapsed = stopwatch.Elapsed;
+                        _currentTime = GetScaledTime(ref startTime, elapsed, ref lastSpeed, _tempoMultiplier);
                         _currentTick = TimeToTick(_currentTime);
                     }
 
                     // Raise periodic position update for smooth UI
-                    var elapsed = stopwatch.Elapsed;
-                    if (elapsed - _lastPositionUpdate >= PositionUpdateInterval)
+                    var elapsedForUpdate = stopwatch.Elapsed;
+                    if (elapsedForUpdate - _lastPositionUpdate >= PositionUpdateInterval)
                     {
-                        _lastPositionUpdate = elapsed;
+                        _lastPositionUpdate = elapsedForUpdate;
                         RaisePositionChanged();
                     }
 
@@ -452,6 +478,24 @@ public sealed class SequencerEngine : IDisposable
             _lastPositionUpdate = stopwatch.Elapsed;
             RaisePositionChanged();
         }
+    }
+
+    private static TimeSpan GetScaledTime(ref TimeSpan startTime, TimeSpan elapsed, ref double lastSpeed, double speed)
+    {
+        if (Math.Abs(speed - lastSpeed) > 0.0001)
+        {
+            var currentTime = startTime + ScaleElapsed(elapsed, lastSpeed);
+            startTime = currentTime - ScaleElapsed(elapsed, speed);
+            lastSpeed = speed;
+        }
+
+        return startTime + ScaleElapsed(elapsed, speed);
+    }
+
+    private static TimeSpan ScaleElapsed(TimeSpan elapsed, double speed)
+    {
+        var ticks = (long)(elapsed.Ticks * speed);
+        return ticks <= 0 ? TimeSpan.Zero : TimeSpan.FromTicks(ticks);
     }
 
     private void ResetForLoop(Stopwatch stopwatch)

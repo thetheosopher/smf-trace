@@ -118,8 +118,10 @@ public partial class MainWindow : Window
                 break;
 
             case nameof(MainViewModel.CurrentTempo):
+            case nameof(MainViewModel.EffectiveTempo):
+            case nameof(MainViewModel.PlaybackRate):
                 // Update tempo display
-                PianoRoll.UpdateTempo(_viewModel.CurrentTempo);
+                PianoRoll.UpdateTempo(_viewModel.EffectiveTempo);
                 break;
         }
     }

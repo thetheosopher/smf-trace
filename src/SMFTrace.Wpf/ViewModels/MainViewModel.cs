@@ -32,6 +32,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
     private bool _loopPlayback;
+    private double _playbackRate = 1.0;
     private int _defaultInstrumentProgram;
     private bool _fileHasProgramChanges;
     private byte[] _fileUsedChannels = [];
@@ -44,6 +45,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _isFileLoaded;
     private ChannelState[] _channelStates = new ChannelState[16];
     private double _currentTempo = 120.0;
+    private double _effectiveTempo = 120.0;
     private bool _isSeeking;
     private bool _forceStopPosition;
     private DateTime _lastChannelStateUpdate;
@@ -97,6 +99,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _showTempo = s.ShowTempo;
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
         _loopPlayback = s.LoopPlayback;
+        _playbackRate = Math.Clamp(s.PlaybackRate, 0.05, 4.0);
         _defaultInstrumentProgram = Math.Clamp(s.DefaultInstrumentProgram, 0, 127);
         _showNoteNames = s.ShowNoteNames;
         _showPianoKeys = s.ShowPianoKeys;
@@ -113,6 +116,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             instrument => instrument.Program == _defaultInstrumentProgram)
             ?? DefaultInstruments.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedDefaultInstrument));
+        OnPropertyChanged(nameof(PlaybackRate));
+        OnPropertyChanged(nameof(PlaybackRateLabel));
+        UpdateEffectiveTempo();
     }
 
     /// <summary>
@@ -125,6 +131,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.ShowTempo = ShowTempo;
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
         s.LoopPlayback = LoopPlayback;
+        s.PlaybackRate = PlaybackRate;
         s.DefaultInstrumentProgram = _defaultInstrumentProgram;
         s.ShowNoteNames = ShowNoteNames;
         s.ShowPianoKeys = ShowPianoKeys;
@@ -214,6 +221,28 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             }
         }
     }
+
+    public double PlaybackRate
+    {
+        get => _playbackRate;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.05, 4.0);
+            var rounded = Math.Round(clamped / 0.05, 0, MidpointRounding.AwayFromZero) * 0.05;
+            if (SetField(ref _playbackRate, rounded))
+            {
+                if (_engine != null)
+                {
+                    _engine.TempoMultiplier = rounded;
+                }
+
+                OnPropertyChanged(nameof(PlaybackRateLabel));
+                UpdateEffectiveTempo();
+            }
+        }
+    }
+
+    public string PlaybackRateLabel => $"{PlaybackRate:0.00}x";
 
     public bool ShowNoteNames
     {
@@ -306,7 +335,24 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public double CurrentTempo
     {
         get => _currentTempo;
-        private set => SetField(ref _currentTempo, value);
+        private set
+        {
+            if (SetField(ref _currentTempo, value))
+            {
+                UpdateEffectiveTempo();
+            }
+        }
+    }
+
+    public double EffectiveTempo
+    {
+        get => _effectiveTempo;
+        private set => SetField(ref _effectiveTempo, value);
+    }
+
+    private void UpdateEffectiveTempo()
+    {
+        EffectiveTempo = _currentTempo * _playbackRate;
     }
 
     public IReadOnlyList<MidiEventBase> Events => _fileData?.Events ?? [];
@@ -368,7 +414,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             // Create new engine
             _engine = new SequencerEngine(_fileData, new SMFTrace.Core.Configuration.PlaybackOptions
             {
-                LoopPlayback = LoopPlayback
+                LoopPlayback = LoopPlayback,
+                TempoMultiplier = PlaybackRate
             });
             _engine.PositionChanged += OnPositionChanged;
             _engine.StateChanged += OnStateChanged;
@@ -379,6 +426,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             IsFileLoaded = true;
             PlaybackState = PlaybackState.Stopped;
             WindowTitle = $"SMF Trace - {Path.GetFileName(filePath)}";
+            OnPropertyChanged(nameof(PlaybackRateLabel));
 
             // Initialize channel states
             _channelStates = _snapshotBuilder.RebuildStateAtTick(0);

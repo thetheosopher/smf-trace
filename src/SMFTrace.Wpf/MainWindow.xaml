@@ -236,13 +236,28 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
                         <CheckBox Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource DarkCheckBoxStyle}"/>
                         <CheckBox Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource DarkCheckBoxStyle}"/>
                         <CheckBox Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Show note names in lane headers"/>
                         <CheckBox Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Show piano keys in lane headers"/>
                         <CheckBox Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Compact lane pitch range to used notes"/>
                         <CheckBox Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Overlay all tracks with distinct colors"/>
+                        <Separator/>
+                        <TextBlock Text="Speed" VerticalAlignment="Center" Foreground="White" Margin="6,0,4,0"/>
+                        <Slider Minimum="0.05"
+                            Maximum="4"
+                            Value="{Binding PlaybackRate, Mode=TwoWay}"
+                            Width="120"
+                            TickFrequency="0.05"
+                            IsSnapToTickEnabled="True"
+                            SmallChange="0.05"
+                            LargeChange="0.25"
+                            AutoToolTipPlacement="TopLeft"
+                            AutoToolTipPrecision="2"
+                            VerticalAlignment="Center"
+                            ToolTip="Playback speed (0.05x - 4x)"/>
+                        <TextBlock Text="{Binding PlaybackRate, StringFormat={}{0:0.00}x}" VerticalAlignment="Center" Foreground="White" Margin="6,0" MinWidth="44"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <Separator/>

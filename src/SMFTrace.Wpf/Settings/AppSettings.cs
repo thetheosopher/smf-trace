@@ -51,6 +51,11 @@ public sealed class AppSettings
     public bool LoopPlayback { get; set; }
 
     /// <summary>
+    /// Playback speed multiplier (0.05x - 4x).
+    /// </summary>
+    public double PlaybackRate { get; set; } = 1.0;
+
+    /// <summary>
     /// Default instrument program number (0-127) used when no Program Change exists.
     /// </summary>
     public int DefaultInstrumentProgram { get; set; }
