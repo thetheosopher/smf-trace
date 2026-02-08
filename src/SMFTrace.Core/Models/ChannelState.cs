@@ -27,7 +27,7 @@ public sealed record ChannelState
     /// </summary>
     public string InstrumentDisplayName => HasProgramChange ? GetGmInstrumentName(Program) : "(default)";
 
-    private static string GetGmInstrumentName(byte program) => program switch
+    public static string GetGmInstrumentName(byte program) => program switch
     {
         // Piano (0-7)
         0 => "Acoustic Grand Piano",

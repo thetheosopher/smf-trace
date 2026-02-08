@@ -51,6 +51,11 @@ public sealed class AppSettings
     public bool LoopPlayback { get; set; }
 
     /// <summary>
+    /// Default instrument program number (0-127) used when no Program Change exists.
+    /// </summary>
+    public int DefaultInstrumentProgram { get; set; }
+
+    /// <summary>
     /// Whether note names are shown in the piano roll header.
     /// </summary>
     public bool ShowNoteNames { get; set; }

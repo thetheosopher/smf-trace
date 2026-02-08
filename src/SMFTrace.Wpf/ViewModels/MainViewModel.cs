@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Microsoft.Win32;
@@ -30,6 +31,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
     private bool _loopPlayback;
+    private int _defaultInstrumentProgram;
+    private bool _fileHasProgramChanges;
+    private byte[] _fileUsedChannels = [];
     private bool _showNoteNames;
     private bool _showPianoKeys;
     private bool _compactPitchRange;
@@ -41,6 +45,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private double _currentTempo = 120.0;
     private bool _isSeeking;
     private DateTime _lastChannelStateUpdate;
+    private InstrumentOption? _selectedDefaultInstrument;
 
     /// <summary>Diagnostics tab view model.</summary>
     public DiagnosticsViewModel Diagnostics { get; } = new();
@@ -56,6 +61,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public MainViewModel(SettingsService settings)
     {
         _settings = settings;
+
+        DefaultInstruments = new ObservableCollection<InstrumentOption>(
+            Enumerable.Range(0, 128)
+                .Select(program => new InstrumentOption((byte)program, ChannelState.GetGmInstrumentName((byte)program))));
 
         // Load settings
         _settings.Load();
@@ -86,6 +95,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _showTempo = s.ShowTempo;
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
         _loopPlayback = s.LoopPlayback;
+        _defaultInstrumentProgram = Math.Clamp(s.DefaultInstrumentProgram, 0, 127);
         _showNoteNames = s.ShowNoteNames;
         _showPianoKeys = s.ShowPianoKeys;
         _compactPitchRange = s.CompactPitchRange;
@@ -96,6 +106,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         Diagnostics.ShowControlChanges = s.DiagShowControlChanges;
         Diagnostics.ShowProgramChanges = s.DiagShowProgramChanges;
         Diagnostics.MetaOnlyMode = s.DiagMetaOnlyMode;
+
+        _selectedDefaultInstrument = DefaultInstruments.FirstOrDefault(
+            instrument => instrument.Program == _defaultInstrumentProgram)
+            ?? DefaultInstruments.FirstOrDefault();
+        OnPropertyChanged(nameof(SelectedDefaultInstrument));
     }
 
     /// <summary>
@@ -108,6 +123,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.ShowTempo = ShowTempo;
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
         s.LoopPlayback = LoopPlayback;
+        s.DefaultInstrumentProgram = _defaultInstrumentProgram;
         s.ShowNoteNames = ShowNoteNames;
         s.ShowPianoKeys = ShowPianoKeys;
         s.CompactPitchRange = CompactPitchRange;
@@ -250,6 +266,23 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public ObservableCollection<MidiDeviceInfo> Devices { get; } = [];
 
+    public ObservableCollection<InstrumentOption> DefaultInstruments { get; }
+
+    public InstrumentOption? SelectedDefaultInstrument
+    {
+        get => _selectedDefaultInstrument;
+        set
+        {
+            if (SetField(ref _selectedDefaultInstrument, value) && value != null)
+            {
+                _defaultInstrumentProgram = value.Program;
+                ApplyDefaultInstrumentToChannelStates();
+                SendDefaultInstrumentToDevice();
+                OnPropertyChanged(nameof(ChannelStates));
+            }
+        }
+    }
+
     public MidiDeviceInfo? SelectedDevice
     {
         get => _selectedDevice;
@@ -322,6 +355,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             // Load the file
             _fileData = MidiFileLoader.Load(filePath);
             _snapshotBuilder = new StateSnapshotBuilder(_fileData.Events);
+            _fileHasProgramChanges = _fileData.Events.OfType<ProgramChangeEvent>().Any();
+            _fileUsedChannels = _fileData.Events
+                .OfType<ChannelEventBase>()
+                .Select(evt => evt.Channel)
+                .Distinct()
+                .OrderBy(channel => channel)
+                .ToArray();
 
             // Create new engine
             _engine = new SequencerEngine(_fileData, new SMFTrace.Core.Configuration.PlaybackOptions
@@ -340,6 +380,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             // Initialize channel states
             _channelStates = _snapshotBuilder.RebuildStateAtTick(0);
+            ApplyDefaultInstrumentToChannelStates();
 
             // Initialize tempo from start of file
             if (_fileData.TempoMap != null)
@@ -364,6 +405,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (_midiOutput != null)
             {
                 _engine.SetOutput(new MidiOutputAdapter(_midiOutput));
+                SendDefaultInstrumentToDevice();
             }
         }
         catch (Core.MidiFileException mfex)
@@ -397,6 +439,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void Play()
     {
+        SendDefaultInstrumentToDevice();
         _engine?.Play();
     }
 
@@ -413,6 +456,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (_snapshotBuilder != null)
         {
             _channelStates = _snapshotBuilder.RebuildStateAtTick(0);
+            ApplyDefaultInstrumentToChannelStates();
             OnPropertyChanged(nameof(ChannelStates));
         }
 
@@ -431,6 +475,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (_snapshotBuilder != null && _engine != null)
         {
             _channelStates = _snapshotBuilder.RebuildStateAtTick(_engine.CurrentTick);
+            ApplyDefaultInstrumentToChannelStates();
             OnPropertyChanged(nameof(ChannelStates));
         }
     }
@@ -508,6 +553,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 _midiOutput = WinMidiOutput.Open(SelectedDevice.Value.DeviceId);
                 _engine?.SetOutput(new MidiOutputAdapter(_midiOutput));
+                SendDefaultInstrumentToDevice();
             }
             catch (Exception ex)
             {
@@ -550,9 +596,61 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 _lastChannelStateUpdate = now;
                 _channelStates = _snapshotBuilder.RebuildStateAtTick(e.Tick);
+                ApplyDefaultInstrumentToChannelStates();
                 OnPropertyChanged(nameof(ChannelStates));
             }
         });
+    }
+
+    private void SendDefaultInstrumentToDevice()
+    {
+        if (_fileData == null || _fileHasProgramChanges || _midiOutput == null)
+        {
+            return;
+        }
+
+        if (_fileUsedChannels.Length == 0)
+        {
+            return;
+        }
+
+        var program = (byte)_defaultInstrumentProgram;
+        foreach (var channel in _fileUsedChannels)
+        {
+            var status = (byte)(0xC0 | channel);
+            _midiOutput.SendShortMessage(status, program, 0);
+        }
+    }
+
+    private void ApplyDefaultInstrumentToChannelStates()
+    {
+        if (_fileData == null || _fileHasProgramChanges)
+        {
+            return;
+        }
+
+        if (_fileUsedChannels.Length == 0)
+        {
+            return;
+        }
+
+        if (_channelStates.Length == 0)
+        {
+            return;
+        }
+
+        var program = (byte)_defaultInstrumentProgram;
+        foreach (var channel in _fileUsedChannels)
+        {
+            if (channel < _channelStates.Length)
+            {
+                _channelStates[channel] = _channelStates[channel] with
+                {
+                    Program = program,
+                    HasProgramChange = true
+                };
+            }
+        }
     }
 
     private void OnStateChanged(object? sender, PlaybackStateChangedEventArgs e)
@@ -621,3 +719,5 @@ public sealed class RelayCommand : ICommand
 
     public void Execute(object? parameter) => _execute();
 }
+
+public sealed record InstrumentOption(byte Program, string Name);
