@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using SMFTrace.Core.Models;
 
 namespace SMFTrace.Wpf.ViewModels;
@@ -194,6 +195,72 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
     {
         _allEvents = events;
         ApplyFilters();
+    }
+
+    public async Task LoadEventsAsync(IReadOnlyList<MidiEventBase> events)
+    {
+        _allEvents = events;
+
+        var showNotes = _showNotes;
+        var showControlChanges = _showControlChanges;
+        var showProgramChanges = _showProgramChanges;
+        var showMeta = _showMeta;
+        var showSysEx = _showSysEx;
+        var showOther = _showOther;
+        var metaOnlyMode = _metaOnlyMode;
+        var searchText = _searchText;
+        var searchLower = string.IsNullOrWhiteSpace(searchText) ? string.Empty : searchText.ToLowerInvariant();
+
+        var filtered = await Task.Run(() =>
+        {
+            var list = new List<DiagnosticEventViewModel>();
+            var index = 0;
+
+            foreach (var evt in events)
+            {
+                var vm = new DiagnosticEventViewModel(evt, index++);
+
+                if (metaOnlyMode && !vm.IsMeta)
+                {
+                    continue;
+                }
+
+                var passesCategory = vm.Category switch
+                {
+                    EventCategory.Note => showNotes,
+                    EventCategory.ControlChange => showControlChanges,
+                    EventCategory.ProgramChange => showProgramChanges,
+                    EventCategory.Meta => showMeta,
+                    EventCategory.SysExCategory => showSysEx,
+                    EventCategory.Other => showOther,
+                    _ => true
+                };
+
+                if (!passesCategory)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(searchLower))
+                {
+                    var matchesSearch =
+                        vm.EventType.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
+                        vm.Summary.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
+                        vm.RawBytesHex.Contains(searchLower, StringComparison.OrdinalIgnoreCase);
+
+                    if (!matchesSearch)
+                    {
+                        continue;
+                    }
+                }
+
+                list.Add(vm);
+            }
+
+            return list;
+        });
+
+        FilteredEvents = new ObservableCollection<DiagnosticEventViewModel>(filtered);
     }
 
     /// <summary>

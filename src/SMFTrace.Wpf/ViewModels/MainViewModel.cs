@@ -380,7 +380,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     #region Command Implementations
 
-    private void Open()
+    private async void Open()
     {
         var dialog = new OpenFileDialog
         {
@@ -390,11 +390,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         if (dialog.ShowDialog() == true)
         {
-            LoadFile(dialog.FileName);
+            await LoadFileAsync(dialog.FileName);
         }
     }
 
-    public void LoadFile(string filePath)
+    public async Task LoadFileAsync(string filePath)
     {
         try
         {
@@ -409,16 +409,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             StopAllNotesOnOutput();
             _engine?.Dispose();
 
-            // Load the file
-            _fileData = MidiFileLoader.Load(filePath);
-            _snapshotBuilder = new StateSnapshotBuilder(_fileData.Events);
-            _fileHasProgramChanges = _fileData.Events.OfType<ProgramChangeEvent>().Any();
-            _fileUsedChannels = _fileData.Events
-                .OfType<ChannelEventBase>()
-                .Select(evt => evt.Channel)
-                .Distinct()
-                .OrderBy(channel => channel)
-                .ToArray();
+            var loadResult = await Task.Run(() => LoadMidiFile(filePath));
+
+            _fileData = loadResult.FileData;
+            _snapshotBuilder = loadResult.SnapshotBuilder;
+            _fileHasProgramChanges = loadResult.FileHasProgramChanges;
+            _fileUsedChannels = loadResult.FileUsedChannels;
 
             // Create new engine
             _engine = new SequencerEngine(_fileData, new SMFTrace.Core.Configuration.PlaybackOptions
@@ -439,7 +435,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(PlaybackRateLabel));
 
             // Initialize channel states
-            _channelStates = _snapshotBuilder.RebuildStateAtTick(0);
+            _channelStates = loadResult.InitialChannelStates;
             ApplyDefaultInstrumentToChannelStates();
 
             // Initialize tempo from start of file
@@ -454,7 +450,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             }
 
             // Load events into diagnostics view
-            Diagnostics.LoadEvents(_fileData.Events);
+            await Diagnostics.LoadEventsAsync(_fileData.Events);
 
             // Notify UI to reload notes
             OnPropertyChanged(nameof(Events));
@@ -495,6 +491,28 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
         }
+    }
+
+    private static LoadResult LoadMidiFile(string filePath)
+    {
+        var fileData = MidiFileLoader.Load(filePath);
+        var snapshotBuilder = new StateSnapshotBuilder(fileData.Events);
+        var fileHasProgramChanges = fileData.Events.OfType<ProgramChangeEvent>().Any();
+        var fileUsedChannels = fileData.Events
+            .OfType<ChannelEventBase>()
+            .Select(evt => evt.Channel)
+            .Distinct()
+            .OrderBy(channel => channel)
+            .ToArray();
+
+        var initialChannelStates = snapshotBuilder.RebuildStateAtTick(0);
+
+        return new LoadResult(
+            fileData,
+            snapshotBuilder,
+            fileHasProgramChanges,
+            fileUsedChannels,
+            initialChannelStates);
     }
 
     private void StopAllNotesOnOutput()
@@ -833,3 +851,10 @@ public sealed class RelayCommand : ICommand
 public sealed record InstrumentOption(byte Program, string Name);
 
 public sealed record LiveNoteChanged(byte Channel, byte Note, bool IsActive);
+
+public sealed record LoadResult(
+    MidiFileData FileData,
+    StateSnapshotBuilder SnapshotBuilder,
+    bool FileHasProgramChanges,
+    byte[] FileUsedChannels,
+    ChannelState[] InitialChannelStates);

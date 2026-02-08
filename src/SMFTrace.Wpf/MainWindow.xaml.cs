@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -196,7 +197,7 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void OnDrop(object sender, DragEventArgs e)
+    private async void OnDrop(object sender, DragEventArgs e)
     {
         if (e.Data.GetDataPresent(DataFormats.FileDrop))
         {
@@ -209,7 +210,7 @@ public partial class MainWindow : Window
                     _viewModel.StopCommand.Execute(null);
                 }
 
-                _viewModel.LoadFile(files[0]);
+                await _viewModel.LoadFileAsync(files[0]);
 
                 if (_viewModel.CanPlay)
                 {
@@ -219,7 +220,7 @@ public partial class MainWindow : Window
         }
     }
 
-    public void OpenFileFromCommandLine(string filePath)
+    public async Task OpenFileFromCommandLineAsync(string filePath)
     {
         if (IsMidiFile(filePath))
         {
@@ -228,7 +229,7 @@ public partial class MainWindow : Window
                 _viewModel.StopCommand.Execute(null);
             }
 
-            _viewModel.LoadFile(filePath);
+            await _viewModel.LoadFileAsync(filePath);
 
             if (_viewModel.CanPlay)
             {

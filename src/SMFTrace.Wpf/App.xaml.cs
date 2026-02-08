@@ -16,7 +16,7 @@ public partial class App : Application
 		var filePath = GetCommandLineMidiPath(e.Args);
 		if (!string.IsNullOrEmpty(filePath))
 		{
-			mainWindow.OpenFileFromCommandLine(filePath);
+			_ = mainWindow.OpenFileFromCommandLineAsync(filePath);
 		}
 
 		mainWindow.Show();
