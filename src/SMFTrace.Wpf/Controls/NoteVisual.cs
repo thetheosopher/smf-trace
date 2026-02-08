@@ -97,6 +97,9 @@ public sealed class LaneLayout
     /// <summary>Active note timeline for keyboard highlighting.</summary>
     public LaneEventTimeline ActiveTimeline { get; set; } = new LaneEventTimeline([]);
 
+    /// <summary>Live active notes from the sequencer (if available).</summary>
+    public bool[]? LiveActiveNotes { get; set; }
+
     /// <summary>Cached keyboard drawing for this lane.</summary>
     public DrawingGroup? KeyboardDrawing { get; set; }
 

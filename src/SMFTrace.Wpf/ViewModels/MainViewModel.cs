@@ -359,6 +359,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<TrackInfo> Tracks => _fileData?.Tracks ?? [];
     public ChannelState[] ChannelStates => _channelStates;
 
+    public event EventHandler<LiveNoteChanged>? LiveNoteChanged;
+
     public bool CanPlay => IsFileLoaded && PlaybackState != PlaybackState.Playing && SelectedDevice != null;
     public bool CanPause => PlaybackState == PlaybackState.Playing;
     public bool CanStop => PlaybackState != PlaybackState.Stopped;
@@ -397,6 +399,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             // Stop any existing playback
+            if (_engine != null)
+            {
+                _engine.PositionChanged -= OnPositionChanged;
+                _engine.StateChanged -= OnStateChanged;
+                _engine.NoteActivityChanged -= OnNoteActivityChanged;
+            }
             _engine?.Stop();
             StopAllNotesOnOutput();
             _engine?.Dispose();
@@ -420,6 +428,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             });
             _engine.PositionChanged += OnPositionChanged;
             _engine.StateChanged += OnStateChanged;
+            _engine.NoteActivityChanged += OnNoteActivityChanged;
 
             // Update UI
             TotalDuration = _fileData.Duration;
@@ -748,6 +757,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         });
     }
 
+    private void OnNoteActivityChanged(object? sender, NoteActivityChangedEventArgs e)
+    {
+        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        {
+            LiveNoteChanged?.Invoke(this, new LiveNoteChanged(e.Channel, e.Note, e.IsActive));
+        });
+    }
+
     #endregion
 
     #region INotifyPropertyChanged
@@ -774,6 +791,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         SaveSettings();
+        if (_engine != null)
+        {
+            _engine.PositionChanged -= OnPositionChanged;
+            _engine.StateChanged -= OnStateChanged;
+            _engine.NoteActivityChanged -= OnNoteActivityChanged;
+        }
         _engine?.Stop();
         _engine?.Dispose();
         _midiOutput?.Dispose();
@@ -808,3 +831,5 @@ public sealed class RelayCommand : ICommand
 }
 
 public sealed record InstrumentOption(byte Program, string Name);
+
+public sealed record LiveNoteChanged(byte Channel, byte Note, bool IsActive);

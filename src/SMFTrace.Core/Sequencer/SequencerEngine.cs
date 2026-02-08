@@ -27,6 +27,7 @@ public sealed class SequencerEngine : IDisposable
     private readonly PlaybackOptions _options;
     private readonly object _lock = new();
     private double _tempoMultiplier = 1.0;
+    private readonly bool[,] _activeNotes = new bool[16, 128];
 
     private ISequencerOutput? _output;
     private CancellationTokenSource? _playbackCts;
@@ -56,6 +57,11 @@ public sealed class SequencerEngine : IDisposable
     /// Raised when an event is dispatched to the output.
     /// </summary>
     public event EventHandler<EventDispatchedEventArgs>? EventDispatched;
+
+    /// <summary>
+    /// Raised when a note becomes active/inactive.
+    /// </summary>
+    public event EventHandler<NoteActivityChangedEventArgs>? NoteActivityChanged;
 
     /// <summary>
     /// Creates a new sequencer engine for the given file data.
@@ -179,6 +185,7 @@ public sealed class SequencerEngine : IDisposable
             _playbackTask = null;
 
             _output?.AllNotesOff();
+            ClearActiveNotes();
             SetState(PlaybackState.Paused);
         }
     }
@@ -206,6 +213,7 @@ public sealed class SequencerEngine : IDisposable
             _playbackTask = null;
 
             _output?.AllNotesOff();
+            ClearActiveNotes();
             _currentEventIndex = 0;
             _currentTick = 0;
             _currentTime = TimeSpan.Zero;
@@ -503,6 +511,7 @@ public sealed class SequencerEngine : IDisposable
         lock (_lock)
         {
             _output?.AllNotesOff();
+            ClearActiveNotes();
             _currentEventIndex = 0;
             _currentTick = 0;
             _currentTime = TimeSpan.Zero;
@@ -527,6 +536,7 @@ public sealed class SequencerEngine : IDisposable
         switch (evt)
         {
             case NoteOnEvent noteOn:
+                UpdateActiveNote(noteOn.Channel, noteOn.NoteNumber, noteOn.Velocity > 0);
                 _output.SendShortMessage(
                     (byte)(0x90 | noteOn.Channel),
                     noteOn.NoteNumber,
@@ -534,6 +544,7 @@ public sealed class SequencerEngine : IDisposable
                 break;
 
             case NoteOffEvent noteOff:
+                UpdateActiveNote(noteOff.Channel, noteOff.NoteNumber, false);
                 _output.SendShortMessage(
                     (byte)(0x80 | noteOff.Channel),
                     noteOff.NoteNumber,
@@ -581,6 +592,38 @@ public sealed class SequencerEngine : IDisposable
         }
 
         EventDispatched?.Invoke(this, new EventDispatchedEventArgs(evt));
+    }
+
+    private void UpdateActiveNote(byte channel, byte note, bool isActive)
+    {
+        if (channel > 15 || note > 127)
+        {
+            return;
+        }
+
+        var current = _activeNotes[channel, note];
+        if (current == isActive)
+        {
+            return;
+        }
+
+        _activeNotes[channel, note] = isActive;
+        NoteActivityChanged?.Invoke(this, new NoteActivityChangedEventArgs(channel, note, isActive));
+    }
+
+    private void ClearActiveNotes()
+    {
+        for (byte channel = 0; channel < 16; channel++)
+        {
+            for (byte note = 0; note < 128; note++)
+            {
+                if (_activeNotes[channel, note])
+                {
+                    _activeNotes[channel, note] = false;
+                    NoteActivityChanged?.Invoke(this, new NoteActivityChangedEventArgs(channel, note, false));
+                }
+            }
+        }
     }
 
     private void EmitStateToDevice(ChannelState[] states)
@@ -682,5 +725,22 @@ public sealed class EventDispatchedEventArgs : EventArgs
     public EventDispatchedEventArgs(MidiEventBase evt)
     {
         Event = evt;
+    }
+}
+
+/// <summary>
+/// Event arguments for note activity changes.
+/// </summary>
+public sealed class NoteActivityChangedEventArgs : EventArgs
+{
+    public byte Channel { get; }
+    public byte Note { get; }
+    public bool IsActive { get; }
+
+    public NoteActivityChangedEventArgs(byte channel, byte note, bool isActive)
+    {
+        Channel = channel;
+        Note = note;
+        IsActive = isActive;
     }
 }

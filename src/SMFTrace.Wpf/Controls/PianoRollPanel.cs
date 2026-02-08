@@ -258,6 +258,10 @@ public class PianoRollPanel : FrameworkElement
     private IReadOnlyList<TrackInfo> _tracks = [];
     private double _currentTempo = 120.0; // BPM
     private ChannelState[] _channelStates = new ChannelState[16]; // Cached for lane rebuilds
+    private readonly bool[][] _liveActiveByChannel = Enumerable.Range(0, 16).Select(_ => new bool[128]).ToArray();
+    private readonly int[] _liveOverlayCounts = new int[128];
+    private readonly bool[] _liveActiveOverlay = new bool[128];
+    private bool _useLiveActiveNotes;
 
     // Smooth scrolling fields
     private readonly Stopwatch _smoothScrollStopwatch = new();
@@ -718,6 +722,51 @@ public class PianoRollPanel : FrameworkElement
         }
     }
 
+    public void UpdateLiveActiveNote(byte channel, byte note, bool isActive)
+    {
+        if (channel > 15 || note > 127)
+        {
+            return;
+        }
+
+        var channelNotes = _liveActiveByChannel[channel];
+        if (channelNotes[note] == isActive)
+        {
+            return;
+        }
+
+        channelNotes[note] = isActive;
+        if (isActive)
+        {
+            _liveOverlayCounts[note]++;
+        }
+        else
+        {
+            _liveOverlayCounts[note] = Math.Max(0, _liveOverlayCounts[note] - 1);
+        }
+
+        _liveActiveOverlay[note] = _liveOverlayCounts[note] > 0;
+        _useLiveActiveNotes = true;
+
+        if (!_isSmoothScrolling)
+        {
+            InvalidateLaneHeaders();
+        }
+    }
+
+    public void ClearLiveActiveNotes()
+    {
+        for (var channel = 0; channel < _liveActiveByChannel.Length; channel++)
+        {
+            Array.Clear(_liveActiveByChannel[channel], 0, 128);
+        }
+
+        Array.Clear(_liveOverlayCounts, 0, _liveOverlayCounts.Length);
+        Array.Clear(_liveActiveOverlay, 0, _liveActiveOverlay.Length);
+        _useLiveActiveNotes = false;
+        InvalidateLaneHeaders();
+    }
+
     private void ApplyInstrumentNames()
     {
         foreach (var lane in _lanes)
@@ -1000,6 +1049,7 @@ public class PianoRollPanel : FrameworkElement
             if (ShowPianoKeys && _lanes.Count > 0)
             {
                 UpdateActiveTimelines(renderTime);
+                _lanes[0].LiveActiveNotes = GetLiveActiveNotes(_lanes[0]);
                 RenderPianoKeysForLane(dc, _lanes[0], renderTime, keyLeft);
             }
 
@@ -1035,6 +1085,7 @@ public class PianoRollPanel : FrameworkElement
 
             if (ShowPianoKeys)
             {
+                lane.LiveActiveNotes = GetLiveActiveNotes(lane);
                 RenderPianoKeysForLane(dc, lane, renderTimeLocal, keyLeftLocal);
             }
 
@@ -1139,7 +1190,7 @@ public class PianoRollPanel : FrameworkElement
             return;
         }
 
-        var activeNotes = lane.ActiveTimeline.ActiveNotes;
+        var activeNotes = lane.LiveActiveNotes ?? lane.ActiveTimeline.ActiveNotes;
 
         // Draw white key highlights
         for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
@@ -1184,6 +1235,24 @@ public class PianoRollPanel : FrameworkElement
             dc.DrawRectangle(null, PianoActiveOuterPen, rect);
             dc.DrawRectangle(null, PianoActiveInnerPen, innerRect);
         }
+    }
+
+    private bool[]? GetLiveActiveNotes(LaneLayout lane)
+    {
+        if (!_useLiveActiveNotes)
+        {
+            return null;
+        }
+
+        if (OverlayMode)
+        {
+            return _liveActiveOverlay;
+        }
+
+        var channel = lane.Id.Channel;
+        return channel >= 0 && channel < _liveActiveByChannel.Length
+            ? _liveActiveByChannel[channel]
+            : null;
     }
 
     private static void EnsureKeyboardDrawing(LaneLayout lane, double keyLeft, double keyWidth, double rowHeight)
