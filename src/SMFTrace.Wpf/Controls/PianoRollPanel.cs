@@ -175,6 +175,7 @@ public class PianoRollPanel : FrameworkElement
                 panel._syncPosition = newTime;
                 panel._interpolatedTime = newTime;
                 panel._smoothScrollStopwatch.Restart();
+                panel._lastRenderTime = TimeSpan.Zero;
                 panel.InvalidateVisual();
             }
         }
@@ -485,6 +486,9 @@ public class PianoRollPanel : FrameworkElement
             var timeSinceLastRender = elapsed - _lastRenderTime;
             if (timeSinceLastRender.TotalMilliseconds < 33.3) // ~30 FPS
             {
+                // Keep keyboard highlights responsive even when throttling the main render.
+                RenderLaneHeaders();
+                RenderPlayhead();
                 return;
             }
             _lastRenderTime = elapsed;
@@ -535,9 +539,15 @@ public class PianoRollPanel : FrameworkElement
         if (OverlayMode && _lanes.Count > 0)
         {
             var lane = _lanes[0];
-            if (Math.Abs(lane.Height - finalSize.Height) > 0.1)
+            var targetHeight = finalSize.Height;
+            if (CompactPitchRange && lane.PitchCount > 0)
             {
-                lane.Height = finalSize.Height;
+                targetHeight = Math.Min(targetHeight, lane.PitchCount * 16.0);
+            }
+
+            if (Math.Abs(lane.Height - targetHeight) > 0.1)
+            {
+                lane.Height = targetHeight;
                 lane.KeyboardDrawing = null;
             }
         }
@@ -615,12 +625,18 @@ public class PianoRollPanel : FrameworkElement
         {
             // Single lane with all notes overlaid
             var (pitchLow, pitchHigh) = GetLanePitchRange(_allNotes);
+            var pitchCount = pitchHigh - pitchLow + 1;
+            var overlayHeight = ActualHeight > 0 ? ActualHeight : 600;
+            if (CompactPitchRange && pitchCount > 0)
+            {
+                overlayHeight = Math.Min(overlayHeight, pitchCount * 16.0);
+            }
             var layout = new LaneLayout
             {
                 Id = new LaneId(0, 0),
                 TrackName = "All Tracks (Overlay)",
                 YOffset = 0,
-                Height = ActualHeight > 0 ? ActualHeight : 600,
+                Height = overlayHeight,
                 PitchLow = pitchLow,
                 PitchHigh = pitchHigh,
                 ActiveTimeline = new LaneEventTimeline(_allNotes)

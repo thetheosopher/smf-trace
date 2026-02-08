@@ -153,6 +153,21 @@ public partial class MainWindow : Window
                 _viewModel.PlayCommand.Execute(null);
             }
             e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.OemPlus || e.Key == Key.Add)
+        {
+            _viewModel.ZoomInCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.OemMinus || e.Key == Key.Subtract)
+        {
+            _viewModel.ZoomOutCommand.Execute(null);
+            e.Handled = true;
+            return;
         }
     }
 
