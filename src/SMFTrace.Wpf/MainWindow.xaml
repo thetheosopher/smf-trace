@@ -16,6 +16,7 @@
         d:DataContext="{d:DesignInstance vm:MainViewModel}">
 
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
         <Style TargetType="Button" x:Key="ToolbarButtonStyle">
             <Setter Property="Padding" Value="8,4"/>
             <Setter Property="Margin" Value="2"/>
@@ -208,6 +209,7 @@
         <ToolBarTray Grid.Row="0" Background="#2D2D30">
             <ToolBar Background="#2D2D30" Band="0" BandIndex="0">
                 <Button Content="Open" Command="{Binding OpenCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Button Content="Add" Command="{Binding AddFilesCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
                 <Separator/>
                 <Button Content="Play" Command="{Binding PlayCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
                 <Button Content="Pause" Command="{Binding PauseCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
@@ -270,7 +272,7 @@
         </ToolBarTray>
 
         <!-- Main Content -->
-        <TabControl Grid.Row="1" Background="#252526">
+        <TabControl x:Name="MainTabs" Grid.Row="1" Background="#252526">
             <TabItem Header="Piano Roll">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <controls:PianoRollPanel x:Name="PianoRoll"
@@ -285,6 +287,84 @@
                                              OverlayMode="{Binding OverlayMode}"
                                              IsPlaying="{Binding IsPlaying}"/>
                 </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Playlist">
+                <DataGrid x:Name="PlaylistGrid"
+                          ItemsSource="{Binding PlaylistEntries}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          CanUserReorderColumns="True"
+                          IsReadOnly="True"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          Background="#1E1E23"
+                          Foreground="White"
+                          RowBackground="#252526"
+                          AlternatingRowBackground="#1F1F23"
+                          EnableRowVirtualization="True"
+                          MouseDoubleClick="PlaylistGrid_MouseDoubleClick">
+                    <DataGrid.Resources>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="#2D2D30"/>
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="BorderBrush" Value="#3A3A3F"/>
+                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                            <Setter Property="Padding" Value="6,4"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                        </Style>
+                    </DataGrid.Resources>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderBrush" Value="#2D2D30"/>
+                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsNowPlaying}" Value="True">
+                                    <Setter Property="Background" Value="#2E3A52"/>
+                                    <Setter Property="BorderBrush" Value="#2E3A52"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                </DataTrigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#2E3A52"/>
+                                    <Setter Property="BorderBrush" Value="#2E3A52"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="" Width="24">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#5DA9FF">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value=""/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsNowPlaying}" Value="True">
+                                                        <Setter Property="Text" Value=">"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Title" Binding="{Binding DisplayTitle}" Width="2*"/>
+                        <DataGridTextColumn Header="Duration" Binding="{Binding DurationDisplay}" Width="Auto"/>
+                        <DataGridTextColumn Header="Tempo" Binding="{Binding TempoDisplay}" Width="Auto"/>
+                        <DataGridTextColumn Header="Time Sig" Binding="{Binding TimeSignatureDisplay}" Width="Auto"/>
+                        <DataGridTextColumn Header="Key" Binding="{Binding KeySignatureDisplay}" Width="Auto"/>
+                        <DataGridTextColumn Header="SMF" Binding="{Binding SmfTypeDisplay}" Width="Auto"/>
+                        <DataGridTextColumn Header="Tracks" Binding="{Binding TrackCount}" Width="Auto"/>
+                        <DataGridTextColumn Header="SysEx" Binding="{Binding SysExPresentDisplay}" Width="Auto"/>
+                        <DataGridTextColumn Header="Lyrics" Binding="{Binding LyricsPresentDisplay}" Width="Auto"/>
+                        <DataGridTextColumn Header="Path" Binding="{Binding FilePath}" Width="2*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
             </TabItem>
             <TabItem Header="Diagnostics">
                 <views:DiagnosticsView x:Name="DiagnosticsView"
@@ -306,6 +386,14 @@
                        VerticalAlignment="Center"
                        Margin="8,0"
                        FontFamily="Consolas"/>
+
+            <TextBlock Grid.Column="0"
+                       Text="Loading..."
+                       Foreground="White"
+                       VerticalAlignment="Center"
+                       Margin="100,0,0,0"
+                       FontFamily="Consolas"
+                       Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
 
             <Slider x:Name="SeekSlider"
                     Grid.Column="1"

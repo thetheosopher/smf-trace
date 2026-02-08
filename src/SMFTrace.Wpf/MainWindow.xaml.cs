@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.IO;
 using System.Threading.Tasks;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -188,7 +189,7 @@ public partial class MainWindow : Window
         if (e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
-            if (files?.Length == 1 && IsMidiFile(files[0]))
+            if (files != null && files.Any(IsMidiFile))
             {
                 e.Effects = DragDropEffects.Copy;
             }
@@ -202,19 +203,16 @@ public partial class MainWindow : Window
         if (e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
-            if (files?.Length >= 1 && IsMidiFile(files[0]))
+            if (files != null && files.Any(IsMidiFile))
             {
-                // Stop any existing playback and reset view before loading
-                if (_viewModel.CanStop)
+                var isShift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+                if (isShift)
                 {
-                    _viewModel.StopCommand.Execute(null);
+                    await _viewModel.AddToPlaylistAsync(files);
                 }
-
-                await _viewModel.LoadFileAsync(files[0]);
-
-                if (_viewModel.CanPlay)
+                else
                 {
-                    _viewModel.PlayCommand.Execute(null);
+                    await _viewModel.ReplacePlaylistAsync(files, autoPlay: true);
                 }
             }
         }
@@ -224,16 +222,19 @@ public partial class MainWindow : Window
     {
         if (IsMidiFile(filePath))
         {
-            if (_viewModel.CanStop)
-            {
-                _viewModel.StopCommand.Execute(null);
-            }
+            await _viewModel.ReplacePlaylistAsync(new[] { filePath }, autoPlay: true);
+        }
+    }
 
-            await _viewModel.LoadFileAsync(filePath);
-
-            if (_viewModel.CanPlay)
+    private async void PlaylistGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (PlaylistGrid.SelectedItem is PlaylistEntry entry)
+        {
+            var index = _viewModel.PlaylistEntries.IndexOf(entry);
+            if (index >= 0)
             {
-                _viewModel.PlayCommand.Execute(null);
+                await _viewModel.PlayPlaylistIndexAsync(index);
+                MainTabs.SelectedIndex = 0;
             }
         }
     }

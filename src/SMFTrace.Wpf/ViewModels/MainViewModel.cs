@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.Collections.Generic;
+using System.Threading;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -43,16 +46,25 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private PlaybackState _playbackState = PlaybackState.Stopped;
     private MidiDeviceInfo? _selectedDevice;
     private bool _isFileLoaded;
+    private bool _isLoading;
     private ChannelState[] _channelStates = new ChannelState[16];
     private double _currentTempo = 120.0;
     private double _effectiveTempo = 120.0;
     private bool _isSeeking;
     private bool _forceStopPosition;
+    private bool _userStopRequested;
+    private bool _isPlaylistTransition;
+    private int _currentPlaylistIndex = -1;
+    private int _nowPlayingIndex = -1;
+    private CancellationTokenSource? _playlistParseCts;
+    private readonly Dictionary<string, PlaylistMetadataCache> _playlistMetadataCache = new(StringComparer.OrdinalIgnoreCase);
     private DateTime _lastChannelStateUpdate;
     private InstrumentOption? _selectedDefaultInstrument;
 
     /// <summary>Diagnostics tab view model.</summary>
     public DiagnosticsViewModel Diagnostics { get; } = new();
+
+    public ObservableCollection<PlaylistEntry> PlaylistEntries { get; } = new();
 
     /// <summary>Settings service for persistence.</summary>
     public SettingsService Settings => _settings;
@@ -87,9 +99,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         StopCommand = new RelayCommand(Stop, () => CanStop);
         ZoomInCommand = new RelayCommand(ZoomIn);
         ZoomOutCommand = new RelayCommand(ZoomOut);
+        AddFilesCommand = new RelayCommand(AddFiles);
 
         // Start device enumeration
         RefreshDevices();
+
+        PlaylistEntries.CollectionChanged += OnPlaylistChanged;
     }
 
     private void ApplySettingsToViewModel()
@@ -215,9 +230,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => _loopPlayback;
         set
         {
-            if (SetField(ref _loopPlayback, value) && _engine != null)
+            if (SetField(ref _loopPlayback, value))
             {
-                _engine.LoopPlayback = value;
+                UpdateEngineLoopMode();
             }
         }
     }
@@ -332,6 +347,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         private set => SetField(ref _isFileLoaded, value);
     }
 
+    public bool IsLoading
+    {
+        get => _isLoading;
+        private set => SetField(ref _isLoading, value);
+    }
+
     public double CurrentTempo
     {
         get => _currentTempo;
@@ -361,7 +382,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public event EventHandler<LiveNoteChanged>? LiveNoteChanged;
 
-    public bool CanPlay => IsFileLoaded && PlaybackState != PlaybackState.Playing && SelectedDevice != null;
+    public bool CanPlay => SelectedDevice != null && PlaybackState != PlaybackState.Playing && (IsFileLoaded || PlaylistEntries.Count > 0);
     public bool CanPause => PlaybackState == PlaybackState.Playing;
     public bool CanStop => PlaybackState != PlaybackState.Stopped;
 
@@ -375,6 +396,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand StopCommand { get; }
     public ICommand ZoomInCommand { get; }
     public ICommand ZoomOutCommand { get; }
+    public ICommand AddFilesCommand { get; }
 
     #endregion
 
@@ -385,29 +407,52 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         var dialog = new OpenFileDialog
         {
             Filter = "MIDI Files (*.mid;*.midi)|*.mid;*.midi|All Files (*.*)|*.*",
-            Title = "Open MIDI File"
+            Title = "Open MIDI File",
+            Multiselect = true
         };
 
         if (dialog.ShowDialog() == true)
         {
-            await LoadFileAsync(dialog.FileName);
+            await ReplacePlaylistAsync(dialog.FileNames, autoPlay: true);
         }
     }
 
-    public async Task LoadFileAsync(string filePath)
+    private async void AddFiles()
     {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "MIDI Files (*.mid;*.midi)|*.mid;*.midi|All Files (*.*)|*.*",
+            Title = "Add MIDI Files",
+            Multiselect = true
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            await AddToPlaylistAsync(dialog.FileNames);
+        }
+    }
+
+    public async Task<bool> LoadFileAsync(string filePath)
+    {
+        IsLoading = true;
         try
         {
+            IsFileLoaded = false;
             // Stop any existing playback
+            var oldEngine = _engine;
             if (_engine != null)
             {
                 _engine.PositionChanged -= OnPositionChanged;
                 _engine.StateChanged -= OnStateChanged;
                 _engine.NoteActivityChanged -= OnNoteActivityChanged;
             }
-            _engine?.Stop();
-            StopAllNotesOnOutput();
-            _engine?.Dispose();
+            _engine = null;
+            await Task.Run(() =>
+            {
+                oldEngine?.Stop();
+                StopAllNotesOnOutput();
+                oldEngine?.Dispose();
+            });
 
             var loadResult = await Task.Run(() => LoadMidiFile(filePath));
 
@@ -425,6 +470,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _engine.PositionChanged += OnPositionChanged;
             _engine.StateChanged += OnStateChanged;
             _engine.NoteActivityChanged += OnNoteActivityChanged;
+            UpdateEngineLoopMode();
 
             // Update UI
             TotalDuration = _fileData.Duration;
@@ -463,6 +509,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 _engine.SetOutput(new MidiOutputAdapter(_midiOutput));
                 SendDefaultInstrumentToDevice();
             }
+
+            return true;
         }
         catch (Core.MidiFileException mfex)
         {
@@ -482,6 +530,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 title,
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Warning);
+            return false;
         }
         catch (Exception ex)
         {
@@ -490,6 +539,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 "Error",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
+            return false;
+        }
+        finally
+        {
+            IsLoading = false;
         }
     }
 
@@ -515,6 +569,269 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             initialChannelStates);
     }
 
+    public async Task AddToPlaylistAsync(IEnumerable<string> filePaths)
+    {
+        var files = FilterMidiFiles(filePaths).ToList();
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        EnsurePlaylistParser();
+        foreach (var file in files)
+        {
+            var entry = CreatePlaylistEntry(file);
+            PlaylistEntries.Add(entry);
+            StartMetadataParse(entry, _playlistParseCts!.Token);
+        }
+    }
+
+    public async Task ReplacePlaylistAsync(IEnumerable<string> filePaths, bool autoPlay)
+    {
+        var files = FilterMidiFiles(filePaths).ToList();
+        await StopPlaybackForReplaceAsync();
+
+        CancelPlaylistParsing();
+        ClearPlaylist();
+
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        EnsurePlaylistParser();
+        foreach (var file in files)
+        {
+            var entry = CreatePlaylistEntry(file);
+            PlaylistEntries.Add(entry);
+            StartMetadataParse(entry, _playlistParseCts!.Token);
+        }
+
+        if (autoPlay)
+        {
+            await PlayPlaylistIndexAsync(0);
+        }
+    }
+
+    private async Task StopPlaybackForReplaceAsync()
+    {
+        _userStopRequested = true;
+
+        var oldEngine = _engine;
+        if (oldEngine != null)
+        {
+            oldEngine.PositionChanged -= OnPositionChanged;
+            oldEngine.StateChanged -= OnStateChanged;
+            oldEngine.NoteActivityChanged -= OnNoteActivityChanged;
+        }
+
+        await Task.Run(() =>
+        {
+            oldEngine?.Stop();
+            StopAllNotesOnOutput();
+        });
+
+        _userStopRequested = false;
+    }
+
+    public async Task PlayPlaylistIndexAsync(int index)
+    {
+        if (index < 0 || index >= PlaylistEntries.Count)
+        {
+            return;
+        }
+
+        if (_isPlaylistTransition)
+        {
+            return;
+        }
+
+        _isPlaylistTransition = true;
+        _userStopRequested = true;
+
+        _currentPlaylistIndex = index;
+        var entry = PlaylistEntries[index];
+
+        try
+        {
+            var loaded = await LoadFileAsync(entry.FilePath);
+            if (!loaded)
+            {
+                return;
+            }
+
+            if (CanPlay)
+            {
+                _engine?.Play();
+            }
+
+            SetNowPlaying(index);
+        }
+        finally
+        {
+            _userStopRequested = false;
+            _isPlaylistTransition = false;
+        }
+    }
+
+    private void ClearPlaylist()
+    {
+        foreach (var entry in PlaylistEntries)
+        {
+            entry.IsNowPlaying = false;
+        }
+
+        PlaylistEntries.Clear();
+        _currentPlaylistIndex = -1;
+        _nowPlayingIndex = -1;
+    }
+
+    private void EnsurePlaylistParser()
+    {
+        _playlistParseCts ??= new CancellationTokenSource();
+    }
+
+    private void CancelPlaylistParsing()
+    {
+        _playlistParseCts?.Cancel();
+        _playlistParseCts?.Dispose();
+        _playlistParseCts = null;
+    }
+
+    private static PlaylistEntry CreatePlaylistEntry(string filePath)
+    {
+        var title = Path.GetFileNameWithoutExtension(filePath);
+        var entry = new PlaylistEntry(filePath, title)
+        {
+            DurationDisplay = "-",
+            TempoDisplay = "-",
+            TimeSignatureDisplay = "4/4",
+            KeySignatureDisplay = "-",
+            SmfTypeDisplay = "-",
+            TrackCount = 0,
+            SysExPresentDisplay = "No",
+            LyricsPresentDisplay = "No",
+            MetadataStatus = PlaylistMetadataStatus.Unparsed
+        };
+
+        return entry;
+    }
+
+    private void StartMetadataParse(PlaylistEntry entry, CancellationToken token)
+    {
+        entry.MetadataStatus = PlaylistMetadataStatus.Parsing;
+
+        _ = Task.Run(() =>
+        {
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (TryGetCachedMetadata(entry.FilePath, out var cached))
+            {
+                if (!token.IsCancellationRequested)
+                {
+                    ApplyMetadata(entry, cached);
+                }
+                return;
+            }
+
+            try
+            {
+                var metadata = PlaylistMetadataParser.Parse(entry.FilePath);
+                CacheMetadata(entry.FilePath, metadata);
+                if (!token.IsCancellationRequested)
+                {
+                    ApplyMetadata(entry, metadata);
+                }
+            }
+            catch (Exception)
+            {
+                if (!token.IsCancellationRequested)
+                {
+                    ApplyMetadataFailed(entry);
+                }
+            }
+        }, token);
+    }
+
+    private static void ApplyMetadata(PlaylistEntry entry, PlaylistMetadata metadata)
+    {
+        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        {
+            entry.DisplayTitle = metadata.Title;
+            entry.DurationDisplay = PlaylistMetadataParser.FormatDuration(metadata.Duration);
+            entry.TempoDisplay = PlaylistMetadataParser.FormatTempoDisplay(metadata.TempoMin, metadata.TempoMax);
+            entry.TimeSignatureDisplay = metadata.TimeSignature;
+            entry.KeySignatureDisplay = metadata.KeySignature;
+            entry.SmfTypeDisplay = metadata.SmfType;
+            entry.TrackCount = metadata.TrackCount;
+            entry.SysExPresentDisplay = metadata.HasSysExEvents ? "Yes" : "No";
+            entry.LyricsPresentDisplay = metadata.HasLyrics ? "Yes" : "No";
+            entry.MetadataStatus = PlaylistMetadataStatus.Parsed;
+        });
+    }
+
+    private static void ApplyMetadataFailed(PlaylistEntry entry)
+    {
+        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        {
+            entry.MetadataStatus = PlaylistMetadataStatus.Failed;
+        });
+    }
+
+    private bool TryGetCachedMetadata(string filePath, out PlaylistMetadata metadata)
+    {
+        metadata = default!;
+
+        if (!_playlistMetadataCache.TryGetValue(filePath, out var cache))
+        {
+            return false;
+        }
+
+        var info = new FileInfo(filePath);
+        if (!info.Exists)
+        {
+            return false;
+        }
+
+        if (cache.LastWriteTimeUtc != info.LastWriteTimeUtc || cache.Length != info.Length)
+        {
+            return false;
+        }
+
+        metadata = cache.Metadata;
+        return true;
+    }
+
+    private void CacheMetadata(string filePath, PlaylistMetadata metadata)
+    {
+        var info = new FileInfo(filePath);
+        if (!info.Exists)
+        {
+            return;
+        }
+
+        _playlistMetadataCache[filePath] = new PlaylistMetadataCache(
+            metadata,
+            info.LastWriteTimeUtc,
+            info.Length);
+    }
+
+    private static IEnumerable<string> FilterMidiFiles(IEnumerable<string> filePaths)
+    {
+        foreach (var file in filePaths)
+        {
+            var ext = Path.GetExtension(file);
+            if (ext.Equals(".mid", StringComparison.OrdinalIgnoreCase) ||
+                ext.Equals(".midi", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return file;
+            }
+        }
+    }
+
     private void StopAllNotesOnOutput()
     {
         if (_midiOutput == null)
@@ -534,8 +851,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private void Play()
+    private async void Play()
     {
+        if (_engine == null && PlaylistEntries.Count > 0)
+        {
+            var index = _currentPlaylistIndex >= 0 ? _currentPlaylistIndex : 0;
+            await PlayPlaylistIndexAsync(index);
+            return;
+        }
+
         SendDefaultInstrumentToDevice();
         _engine?.Play();
     }
@@ -547,6 +871,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private async void Stop()
     {
+        _userStopRequested = true;
         _forceStopPosition = _engine != null;
         _isSeeking = false;
         _engine?.Stop();
@@ -569,6 +894,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             var tempo = _fileData.TempoMap.GetTempoAtTime(new Melanchall.DryWetMidi.Interaction.MidiTimeSpan(0));
             CurrentTempo = tempo.BeatsPerMinute;
         }
+
+        _userStopRequested = false;
     }
 
     private void SeekTo(TimeSpan time)
@@ -609,6 +936,79 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         _isSeeking = false;
         OnPropertyChanged(nameof(SeekPosition));
+    }
+
+    #endregion
+
+    #region Playlist
+
+    private void OnPlaylistChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(CanPlay));
+        UpdateEngineLoopMode();
+
+        if (_nowPlayingIndex >= PlaylistEntries.Count)
+        {
+            _nowPlayingIndex = -1;
+        }
+
+        if (_currentPlaylistIndex >= PlaylistEntries.Count)
+        {
+            _currentPlaylistIndex = PlaylistEntries.Count - 1;
+        }
+    }
+
+    private void UpdateEngineLoopMode()
+    {
+        if (_engine == null)
+        {
+            return;
+        }
+
+        var useEngineLoop = LoopPlayback && PlaylistEntries.Count <= 1;
+        _engine.LoopPlayback = useEngineLoop;
+    }
+
+    private void SetNowPlaying(int index)
+    {
+        if (_nowPlayingIndex >= 0 && _nowPlayingIndex < PlaylistEntries.Count)
+        {
+            PlaylistEntries[_nowPlayingIndex].IsNowPlaying = false;
+        }
+
+        _nowPlayingIndex = index;
+        if (_nowPlayingIndex >= 0 && _nowPlayingIndex < PlaylistEntries.Count)
+        {
+            PlaylistEntries[_nowPlayingIndex].IsNowPlaying = true;
+        }
+    }
+
+    private async Task HandlePlaybackEndedAsync()
+    {
+        if (_isPlaylistTransition)
+        {
+            return;
+        }
+
+        if (PlaylistEntries.Count == 0 || _currentPlaylistIndex < 0)
+        {
+            return;
+        }
+
+        var nextIndex = _currentPlaylistIndex + 1;
+        if (nextIndex >= PlaylistEntries.Count)
+        {
+            if (LoopPlayback)
+            {
+                nextIndex = 0;
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        await PlayPlaylistIndexAsync(nextIndex);
     }
 
     #endregion
@@ -772,6 +1172,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         System.Windows.Application.Current?.Dispatcher.Invoke(() =>
         {
             PlaybackState = e.NewState;
+
+            if (e.NewState == PlaybackState.Stopped)
+            {
+                if (_userStopRequested)
+                {
+                    _userStopRequested = false;
+                    return;
+                }
+
+                _ = HandlePlaybackEndedAsync();
+            }
         });
     }
 
@@ -815,6 +1226,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _engine.StateChanged -= OnStateChanged;
             _engine.NoteActivityChanged -= OnNoteActivityChanged;
         }
+        PlaylistEntries.CollectionChanged -= OnPlaylistChanged;
+        CancelPlaylistParsing();
         _engine?.Stop();
         _engine?.Dispose();
         _midiOutput?.Dispose();
@@ -858,3 +1271,8 @@ public sealed record LoadResult(
     bool FileHasProgramChanges,
     byte[] FileUsedChannels,
     ChannelState[] InitialChannelStates);
+
+public sealed record PlaylistMetadataCache(
+    PlaylistMetadata Metadata,
+    DateTime LastWriteTimeUtc,
+    long Length);
