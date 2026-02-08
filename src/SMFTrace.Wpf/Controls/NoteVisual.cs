@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Media;
 using SMFTrace.Core.Models;
@@ -58,6 +59,23 @@ public sealed class LaneLayout
     /// <summary>Current instrument display name.</summary>
     public string InstrumentName { get; set; } = "(default)";
 
+    /// <summary>Cached formatted track name.</summary>
+    public FormattedText? TrackText { get; set; }
+
+    /// <summary>Cached formatted channel label.</summary>
+    public FormattedText? ChannelText { get; set; }
+
+    /// <summary>Cached formatted instrument name.</summary>
+    public FormattedText? InstrumentText { get; set; }
+
+    /// <summary>Cached header text DPI.</summary>
+    public double CachedHeaderDpi { get; set; }
+
+    /// <summary>Cached header text values.</summary>
+    public string? CachedTrackName { get; set; }
+    public string? CachedChannelLabel { get; set; }
+    public string? CachedInstrumentName { get; set; }
+
     /// <summary>Y offset from top of scroll area.</summary>
     public double YOffset { get; set; }
 
@@ -75,6 +93,127 @@ public sealed class LaneLayout
 
     /// <summary>Notes in this lane (paired for rendering).</summary>
     public List<PairedNote> Notes { get; } = [];
+
+    /// <summary>Active note timeline for keyboard highlighting.</summary>
+    public LaneEventTimeline ActiveTimeline { get; set; } = new LaneEventTimeline([]);
+
+    /// <summary>Cached keyboard drawing for this lane.</summary>
+    public DrawingGroup? KeyboardDrawing { get; set; }
+
+    /// <summary>Keyboard cache parameters.</summary>
+    public double KeyboardKeyLeft { get; set; }
+    public double KeyboardRowHeight { get; set; }
+    public double KeyboardWidth { get; set; }
+    public double KeyboardHeight { get; set; }
+    public int KeyboardPitchLow { get; set; }
+    public int KeyboardPitchHigh { get; set; }
+
+    public FormattedText[]? NoteNameTexts { get; set; }
+    public double NoteNameFontSize { get; set; }
+    public double NoteNameDpi { get; set; }
+    public int NoteNamePitchLow { get; set; }
+    public int NoteNamePitchHigh { get; set; }
+
+    public void InvalidateHeaderCache()
+    {
+        TrackText = null;
+        ChannelText = null;
+        InstrumentText = null;
+        CachedHeaderDpi = 0;
+        CachedTrackName = null;
+        CachedChannelLabel = null;
+        CachedInstrumentName = null;
+    }
+
+    public void InvalidateNoteNameCache()
+    {
+        NoteNameTexts = null;
+        NoteNameFontSize = 0;
+        NoteNameDpi = 0;
+        NoteNamePitchLow = 0;
+        NoteNamePitchHigh = 0;
+    }
+}
+
+/// <summary>
+/// Incremental active-note tracker for efficient keyboard highlighting.
+/// </summary>
+public sealed class LaneEventTimeline
+{
+    private readonly List<(TimeSpan Time, byte Note)> _noteOns;
+    private readonly List<(TimeSpan Time, byte Note)> _noteOffs;
+    private readonly int[] _activeCounts = new int[128];
+    private readonly bool[] _activeNotes = new bool[128];
+    private int _onIndex;
+    private int _offIndex;
+    private TimeSpan _lastTime;
+    private int _activeTotal;
+
+    public LaneEventTimeline(IEnumerable<PairedNote> notes)
+    {
+        _noteOns = new List<(TimeSpan, byte)>();
+        _noteOffs = new List<(TimeSpan, byte)>();
+
+        foreach (var note in notes)
+        {
+            _noteOns.Add((note.StartTime, note.NoteNumber));
+            _noteOffs.Add((note.EndTime, note.NoteNumber));
+        }
+
+        _noteOns.Sort(static (a, b) => a.Time.CompareTo(b.Time));
+        _noteOffs.Sort(static (a, b) => a.Time.CompareTo(b.Time));
+    }
+
+    public bool[] ActiveNotes => _activeNotes;
+
+    public bool HasAnyActive => _activeTotal > 0;
+
+    public void Reset()
+    {
+        Array.Clear(_activeCounts, 0, _activeCounts.Length);
+        Array.Clear(_activeNotes, 0, _activeNotes.Length);
+        _onIndex = 0;
+        _offIndex = 0;
+        _activeTotal = 0;
+        _lastTime = TimeSpan.Zero;
+    }
+
+    public void AdvanceTo(TimeSpan time)
+    {
+        if (time < _lastTime)
+        {
+            Reset();
+        }
+
+        while (_onIndex < _noteOns.Count && _noteOns[_onIndex].Time <= time)
+        {
+            var note = _noteOns[_onIndex].Note;
+            if (_activeCounts[note] == 0)
+            {
+                _activeNotes[note] = true;
+                _activeTotal++;
+            }
+            _activeCounts[note]++;
+            _onIndex++;
+        }
+
+        while (_offIndex < _noteOffs.Count && _noteOffs[_offIndex].Time < time)
+        {
+            var note = _noteOffs[_offIndex].Note;
+            if (_activeCounts[note] > 0)
+            {
+                _activeCounts[note]--;
+                if (_activeCounts[note] == 0)
+                {
+                    _activeNotes[note] = false;
+                    _activeTotal--;
+                }
+            }
+            _offIndex++;
+        }
+
+        _lastTime = time;
+    }
 }
 
 /// <summary>

@@ -264,6 +264,14 @@ public class PianoRollPanel : FrameworkElement
     private bool _isSmoothScrolling;
     private TimeSpan _interpolatedTime; // Current interpolated position for rendering
     private TimeSpan _lastRenderTime; // For frame rate throttling in non-overlay mode
+    private TimeSpan _lastActiveTimelineUpdate;
+
+    private List<int> _overlayTrackIndices = [];
+    private List<string> _overlayTrackNames = [];
+    private List<FormattedText>? _overlayTrackTexts;
+    private FormattedText? _overlayTrackTitleText;
+    private double _overlayTrackDpi;
+    private double _overlayTrackMaxWidth;
 
     // Cached resources
     private static readonly Pen PlayheadPen;
@@ -526,7 +534,12 @@ public class PianoRollPanel : FrameworkElement
         // Update overlay lane height when size changes
         if (OverlayMode && _lanes.Count > 0)
         {
-            _lanes[0].Height = finalSize.Height;
+            var lane = _lanes[0];
+            if (Math.Abs(lane.Height - finalSize.Height) > 0.1)
+            {
+                lane.Height = finalSize.Height;
+                lane.KeyboardDrawing = null;
+            }
         }
 
         return finalSize;
@@ -587,6 +600,7 @@ public class PianoRollPanel : FrameworkElement
     {
         _allNotes = NotePairer.PairNotes(events);
         _tracks = tracks;
+        BuildOverlayTrackIndexCache();
         RebuildLanes();
     }
 
@@ -608,7 +622,8 @@ public class PianoRollPanel : FrameworkElement
                 YOffset = 0,
                 Height = ActualHeight > 0 ? ActualHeight : 600,
                 PitchLow = pitchLow,
-                PitchHigh = pitchHigh
+                PitchHigh = pitchHigh,
+                ActiveTimeline = new LaneEventTimeline(_allNotes)
             };
 
             layout.Notes.AddRange(_allNotes);
@@ -639,7 +654,8 @@ public class PianoRollPanel : FrameworkElement
                     YOffset = yOffset,
                     Height = laneHeight,
                     PitchLow = pitchLow,
-                    PitchHigh = pitchHigh
+                    PitchHigh = pitchHigh,
+                    ActiveTimeline = new LaneEventTimeline(laneNotes)
                 };
 
                 layout.Notes.AddRange(laneNotes);
@@ -673,6 +689,7 @@ public class PianoRollPanel : FrameworkElement
                 if (lane.InstrumentName != newName)
                 {
                     lane.InstrumentName = newName;
+                    lane.InvalidateHeaderCache();
                     anyChanged = true;
                 }
             }
@@ -692,6 +709,7 @@ public class PianoRollPanel : FrameworkElement
             if (lane.Id.Channel < _channelStates.Length)
             {
                 lane.InstrumentName = _channelStates[lane.Id.Channel].InstrumentDisplayName;
+                lane.InvalidateHeaderCache();
             }
         }
 
@@ -965,6 +983,7 @@ public class PianoRollPanel : FrameworkElement
 
             if (ShowPianoKeys && _lanes.Count > 0)
             {
+                UpdateActiveTimelines(renderTime);
                 RenderPianoKeysForLane(dc, _lanes[0], renderTime, keyLeft);
             }
 
@@ -982,6 +1001,11 @@ public class PianoRollPanel : FrameworkElement
         var renderTimeLocal = RenderTime;
         var keyLeftLocal = GetPianoKeyLeft();
 
+        if (ShowPianoKeys)
+        {
+            UpdateActiveTimelines(renderTimeLocal);
+        }
+
         foreach (var lane in _lanes)
         {
             if (lane.YOffset + lane.Height < visibleTop || lane.YOffset > visibleBottom)
@@ -990,6 +1014,8 @@ public class PianoRollPanel : FrameworkElement
             }
             var y = lane.YOffset + 4;
             var x = 4.0;
+            var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+            EnsureLaneHeaderText(lane, dpi);
 
             if (ShowPianoKeys)
             {
@@ -997,45 +1023,24 @@ public class PianoRollPanel : FrameworkElement
             }
 
             // Track name
-            if (!string.IsNullOrEmpty(lane.TrackName))
+            if (lane.TrackText != null)
             {
-                var trackText = new FormattedText(
-                    lane.TrackName,
-                    System.Globalization.CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight,
-                    LabelTypeface,
-                    11,
-                    Brushes.White,
-                    VisualTreeHelper.GetDpi(this).PixelsPerDip);
-
-                dc.DrawText(trackText, new Point(x, y));
+                dc.DrawText(lane.TrackText, new Point(x, y));
                 y += 14;
             }
 
             // Track/Channel info
-            var channelText = new FormattedText(
-                $"T{lane.Id.TrackIndex} Ch{lane.Id.Channel + 1}",
-                System.Globalization.CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                LabelTypeface,
-                10,
-                Brushes.LightGray,
-                VisualTreeHelper.GetDpi(this).PixelsPerDip);
-
-            dc.DrawText(channelText, new Point(x, y));
-            y += 12;
+            if (lane.ChannelText != null)
+            {
+                dc.DrawText(lane.ChannelText, new Point(x, y));
+                y += 12;
+            }
 
             // Instrument name
-            var instrumentText = new FormattedText(
-                lane.InstrumentName,
-                System.Globalization.CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                LabelTypeface,
-                10,
-                Brushes.CornflowerBlue,
-                VisualTreeHelper.GetDpi(this).PixelsPerDip);
-
-            dc.DrawText(instrumentText, new Point(x, y));
+            if (lane.InstrumentText != null)
+            {
+                dc.DrawText(lane.InstrumentText, new Point(x, y));
+            }
 
             // Note names on the right side (if enabled)
             if (ShowNoteNames)
@@ -1045,7 +1050,56 @@ public class PianoRollPanel : FrameworkElement
         }
     }
 
-    private void RenderPianoKeysForLane(DrawingContext dc, LaneLayout lane, TimeSpan renderTime, double keyLeft)
+    private static void EnsureLaneHeaderText(LaneLayout lane, double dpi)
+    {
+        var trackName = lane.TrackName ?? string.Empty;
+        var channelLabel = $"T{lane.Id.TrackIndex} Ch{lane.Id.Channel + 1}";
+        var instrumentName = lane.InstrumentName;
+
+        if (Math.Abs(lane.CachedHeaderDpi - dpi) < 0.1
+            && lane.CachedTrackName == trackName
+            && lane.CachedChannelLabel == channelLabel
+            && lane.CachedInstrumentName == instrumentName)
+        {
+            return;
+        }
+
+        lane.TrackText = string.IsNullOrEmpty(trackName)
+            ? null
+            : new FormattedText(
+                trackName,
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                LabelTypeface,
+                11,
+                Brushes.White,
+                dpi);
+
+        lane.ChannelText = new FormattedText(
+            channelLabel,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            LabelTypeface,
+            10,
+            Brushes.LightGray,
+            dpi);
+
+        lane.InstrumentText = new FormattedText(
+            instrumentName,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            LabelTypeface,
+            10,
+            Brushes.CornflowerBlue,
+            dpi);
+
+        lane.CachedHeaderDpi = dpi;
+        lane.CachedTrackName = trackName;
+        lane.CachedChannelLabel = channelLabel;
+        lane.CachedInstrumentName = instrumentName;
+    }
+
+    private static void RenderPianoKeysForLane(DrawingContext dc, LaneLayout lane, TimeSpan renderTime, double keyLeft)
     {
         var pitchCount = lane.PitchCount;
         if (pitchCount <= 0)
@@ -1059,82 +1113,152 @@ public class PianoRollPanel : FrameworkElement
         var blackKeyHeight = rowHeight * 0.6;
         var blackKeyX = keyLeft;
 
-        Span<bool> activeNotes = stackalloc bool[128];
-        BuildActiveNotes(lane, renderTime, activeNotes);
-
-        // White keybed behind the keys for contrast
-        var keybedRect = new Rect(keyLeft, lane.YOffset, keyWidth, lane.Height);
-        dc.DrawRectangle(PianoWhiteBrush, null, keybedRect);
-
-        // Draw white keys first
-        for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
+        EnsureKeyboardDrawing(lane, keyLeft, keyWidth, rowHeight);
+        if (lane.KeyboardDrawing != null)
         {
-            if (IsBlackKey(pitch))
-            {
-                continue;
-            }
-
-            var relPitch = pitch - lane.PitchLow;
-            var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
-            var isActive = activeNotes[pitch];
-            var rect = new Rect(keyLeft, y + 1, keyWidth, rowHeight - 2);
-            dc.DrawRectangle(PianoWhiteBrush, PianoKeyOutlinePen, rect);
-
-            if (isActive)
-            {
-                var inset = Math.Max(1, rowHeight * 0.12);
-                var glowRect = new Rect(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
-                var innerRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
-                dc.DrawRectangle(PianoActiveGlowBrush, null, glowRect);
-                dc.DrawRectangle(PianoActiveFillBrush, null, rect);
-                dc.DrawRectangle(null, PianoActiveOuterPen, rect);
-                dc.DrawRectangle(null, PianoActiveInnerPen, innerRect);
-            }
+            dc.DrawDrawing(lane.KeyboardDrawing);
+        }
+        if (!lane.ActiveTimeline.HasAnyActive)
+        {
+            return;
         }
 
+        var activeNotes = lane.ActiveTimeline.ActiveNotes;
+
+        // Draw white key highlights
         for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
         {
-            var relPitch = pitch - lane.PitchLow;
-            var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
-            var isBlack = IsBlackKey(pitch);
-            var isActive = activeNotes[pitch];
-
-            if (!isBlack)
+            if (IsBlackKey(pitch) || !activeNotes[pitch])
             {
                 continue;
             }
 
+            var relPitch = pitch - lane.PitchLow;
+            var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
+            var rect = new Rect(keyLeft, y + 1, keyWidth, rowHeight - 2);
+            var inset = Math.Max(1, rowHeight * 0.12);
+            var glowRect = new Rect(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
+            var innerRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
+            dc.DrawRectangle(PianoActiveGlowBrush, null, glowRect);
+            dc.DrawRectangle(PianoActiveFillBrush, null, rect);
+            dc.DrawRectangle(null, PianoActiveOuterPen, rect);
+            dc.DrawRectangle(null, PianoActiveInnerPen, innerRect);
+        }
+
+        // Draw black key highlights
+        for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
+        {
+            if (!IsBlackKey(pitch) || !activeNotes[pitch])
+            {
+                continue;
+            }
+
+            var relPitch = pitch - lane.PitchLow;
+            var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
             var rect = new Rect(
                 blackKeyX,
                 y + (rowHeight - blackKeyHeight) / 2,
                 blackKeyWidth,
                 blackKeyHeight);
-            dc.DrawRectangle(PianoBlackBrush, null, rect);
-
-            if (isActive)
-            {
-                var glowRect = new Rect(rect.X - 5, rect.Y - 5, rect.Width + 10, rect.Height + 10);
-                var inset = Math.Max(1, rowHeight * 0.12);
-                var innerRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
-                var outerRect = rect;
-                dc.DrawRectangle(PianoActiveGlowBrush, null, glowRect);
-                dc.DrawRectangle(PianoActiveFillBrush, null, rect);
-                dc.DrawRectangle(null, PianoActiveOuterPen, outerRect);
-                dc.DrawRectangle(null, PianoActiveInnerPen, innerRect);
-            }
+            var glowRect = new Rect(rect.X - 5, rect.Y - 5, rect.Width + 10, rect.Height + 10);
+            var inset = Math.Max(1, rowHeight * 0.12);
+            var innerRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
+            dc.DrawRectangle(PianoActiveGlowBrush, null, glowRect);
+            dc.DrawRectangle(PianoActiveFillBrush, null, rect);
+            dc.DrawRectangle(null, PianoActiveOuterPen, rect);
+            dc.DrawRectangle(null, PianoActiveInnerPen, innerRect);
         }
     }
 
-    private static void BuildActiveNotes(LaneLayout lane, TimeSpan renderTime, Span<bool> activeNotes)
+    private static void EnsureKeyboardDrawing(LaneLayout lane, double keyLeft, double keyWidth, double rowHeight)
     {
-        activeNotes.Clear();
-        foreach (var note in lane.Notes)
+        if (lane.KeyboardDrawing != null
+            && Math.Abs(lane.KeyboardKeyLeft - keyLeft) < 0.1
+            && Math.Abs(lane.KeyboardRowHeight - rowHeight) < 0.1
+            && Math.Abs(lane.KeyboardWidth - keyWidth) < 0.1
+            && Math.Abs(lane.KeyboardHeight - lane.Height) < 0.1
+            && lane.KeyboardPitchLow == lane.PitchLow
+            && lane.KeyboardPitchHigh == lane.PitchHigh)
         {
-            if (note.StartTime <= renderTime && note.EndTime >= renderTime)
+            return;
+        }
+
+        var drawing = new DrawingGroup();
+        using (var dc = drawing.Open())
+        {
+            var blackKeyWidth = keyWidth * 0.6;
+            var blackKeyHeight = rowHeight * 0.6;
+            var blackKeyX = keyLeft;
+
+            // White keybed behind the keys for contrast
+            var keybedRect = new Rect(keyLeft, lane.YOffset, keyWidth, lane.Height);
+            dc.DrawRectangle(PianoWhiteBrush, null, keybedRect);
+
+            // Draw white keys
+            for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
             {
-                activeNotes[note.NoteNumber] = true;
+                if (IsBlackKey(pitch))
+                {
+                    continue;
+                }
+
+                var relPitch = pitch - lane.PitchLow;
+                var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
+                var rect = new Rect(keyLeft, y + 1, keyWidth, rowHeight - 2);
+                dc.DrawRectangle(PianoWhiteBrush, PianoKeyOutlinePen, rect);
+            }
+
+            // Draw black keys on top
+            for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
+            {
+                if (!IsBlackKey(pitch))
+                {
+                    continue;
+                }
+
+                var relPitch = pitch - lane.PitchLow;
+                var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
+                var rect = new Rect(
+                    blackKeyX,
+                    y + (rowHeight - blackKeyHeight) / 2,
+                    blackKeyWidth,
+                    blackKeyHeight);
+                dc.DrawRectangle(PianoBlackBrush, null, rect);
             }
         }
+
+        drawing.Freeze();
+
+        lane.KeyboardDrawing = drawing;
+        lane.KeyboardKeyLeft = keyLeft;
+        lane.KeyboardRowHeight = rowHeight;
+        lane.KeyboardWidth = keyWidth;
+        lane.KeyboardHeight = lane.Height;
+        lane.KeyboardPitchLow = lane.PitchLow;
+        lane.KeyboardPitchHigh = lane.PitchHigh;
+    }
+
+    private void UpdateActiveTimelines(TimeSpan renderTime)
+    {
+        if (renderTime == _lastActiveTimelineUpdate)
+        {
+            return;
+        }
+
+        if (renderTime < _lastActiveTimelineUpdate)
+        {
+            foreach (var lane in _lanes)
+            {
+                lane.ActiveTimeline.Reset();
+            }
+        }
+
+        foreach (var lane in _lanes)
+        {
+            lane.ActiveTimeline.AdvanceTo(renderTime);
+        }
+
+        _lastActiveTimelineUpdate = renderTime;
     }
 
     private static bool IsBlackKey(int pitch)
@@ -1145,6 +1269,10 @@ public class PianoRollPanel : FrameworkElement
     private void RenderNoteNamesForLane(DrawingContext dc, LaneLayout lane)
     {
         var pitchCount = lane.PitchCount;
+        if (pitchCount <= 0)
+        {
+            return;
+        }
         var rowHeight = lane.Height / pitchCount;
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         var rightEdge = ShowPianoKeys
@@ -1153,24 +1281,18 @@ public class PianoRollPanel : FrameworkElement
 
         // Calculate font size to fit within row height (leave some padding)
         var fontSize = Math.Max(6, Math.Min(rowHeight * 0.9, 10));
+        EnsureNoteNameCache(lane, fontSize, dpi);
 
         for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
         {
             var relPitch = pitch - lane.PitchLow;
             var noteY = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
 
-            // Use short note name format
-            var noteName = GetNoteNameShort(pitch);
-            var isOctave = pitch % 12 == 0;
-
-            var noteText = new FormattedText(
-                noteName,
-                System.Globalization.CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                LabelTypeface,
-                fontSize,
-                isOctave ? Brushes.White : Brushes.Gray,
-                dpi);
+            var noteText = lane.NoteNameTexts?[relPitch];
+            if (noteText is null)
+            {
+                continue;
+            }
 
             // Right-align the text, center vertically in row
             var textX = rightEdge - noteText.Width;
@@ -1178,6 +1300,55 @@ public class PianoRollPanel : FrameworkElement
 
             dc.DrawText(noteText, new Point(textX, textY));
         }
+    }
+
+    private static void EnsureNoteNameCache(LaneLayout lane, double fontSize, double dpi)
+    {
+        var pitchLow = lane.PitchLow;
+        var pitchHigh = lane.PitchHigh;
+
+        if (lane.NoteNameTexts is not null
+            && Math.Abs(lane.NoteNameFontSize - fontSize) < 0.1
+            && Math.Abs(lane.NoteNameDpi - dpi) < 0.1
+            && lane.NoteNamePitchLow == pitchLow
+            && lane.NoteNamePitchHigh == pitchHigh)
+        {
+            return;
+        }
+
+        if (pitchHigh < pitchLow)
+        {
+            lane.NoteNameTexts = null;
+            lane.NoteNameFontSize = fontSize;
+            lane.NoteNameDpi = dpi;
+            lane.NoteNamePitchLow = pitchLow;
+            lane.NoteNamePitchHigh = pitchHigh;
+            return;
+        }
+
+        var count = pitchHigh - pitchLow + 1;
+        var texts = new FormattedText[count];
+
+        for (var pitch = pitchLow; pitch <= pitchHigh; pitch++)
+        {
+            var noteName = GetNoteNameShort(pitch);
+            var isOctave = pitch % 12 == 0;
+
+            texts[pitch - pitchLow] = new FormattedText(
+                noteName,
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                LabelTypeface,
+                fontSize,
+                isOctave ? Brushes.White : Brushes.Gray,
+                dpi);
+        }
+
+        lane.NoteNameTexts = texts;
+        lane.NoteNameFontSize = fontSize;
+        lane.NoteNameDpi = dpi;
+        lane.NoteNamePitchLow = pitchLow;
+        lane.NoteNamePitchHigh = pitchHigh;
     }
 
     private static string GetNoteNameShort(int midiNote)
@@ -1190,40 +1361,29 @@ public class PianoRollPanel : FrameworkElement
 
     private void RenderOverlayTrackList(DrawingContext dc, double headerRight)
     {
-        // Get unique tracks from all notes
-        var trackInfos = _allNotes
-            .Select(n => n.TrackIndex)
-            .Distinct()
-            .OrderBy(t => t)
-            .ToList();
-
         var y = 8.0;
         var x = 4.0;
         const double lineHeight = 16.0;
         const double colorBoxSize = 10.0;
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
-        // Title
-        var titleText = new FormattedText(
-            "Tracks",
-            System.Globalization.CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            LabelTypeface,
-            11,
-            Brushes.White,
-            dpi);
+        EnsureOverlayTrackTextCache(headerRight, dpi);
 
-        dc.DrawText(titleText, new Point(x, y));
+        // Title
+        if (_overlayTrackTitleText != null)
+        {
+            dc.DrawText(_overlayTrackTitleText, new Point(x, y));
+        }
         y += lineHeight + 4;
 
         // Draw each track with its color
-        foreach (var trackIndex in trackInfos)
+        for (var i = 0; i < _overlayTrackIndices.Count; i++)
         {
             if (y + lineHeight > ActualHeight - 4)
             {
                 // Show "..." if we run out of space
                 var moreText = new FormattedText(
-                    $"... +{trackInfos.Count - trackInfos.IndexOf(trackIndex)} more",
+                    $"... +{_overlayTrackIndices.Count - i} more",
                     System.Globalization.CultureInfo.CurrentCulture,
                     FlowDirection.LeftToRight,
                     LabelTypeface,
@@ -1235,31 +1395,87 @@ public class PianoRollPanel : FrameworkElement
             }
 
             // Color indicator box
+            var trackIndex = _overlayTrackIndices[i];
             var trackBrush = TrackColorMapper.GetBrush(trackIndex);
             var colorRect = new Rect(x, y + 2, colorBoxSize, colorBoxSize);
             dc.DrawRectangle(trackBrush, null, colorRect);
 
-            // Track name or index
+            var trackText = _overlayTrackTexts != null && i < _overlayTrackTexts.Count
+                ? _overlayTrackTexts[i]
+                : null;
+            if (trackText != null)
+            {
+                dc.DrawText(trackText, new Point(x + colorBoxSize + 4, y));
+            }
+            y += lineHeight;
+        }
+    }
+
+    private void BuildOverlayTrackIndexCache()
+    {
+        _overlayTrackIndices = _allNotes
+            .Select(n => n.TrackIndex)
+            .Distinct()
+            .OrderBy(t => t)
+            .ToList();
+
+        _overlayTrackNames = new List<string>(_overlayTrackIndices.Count);
+        foreach (var trackIndex in _overlayTrackIndices)
+        {
             var trackName = trackIndex < _tracks.Count && !string.IsNullOrEmpty(_tracks[trackIndex].Name)
                 ? _tracks[trackIndex].Name
                 : $"Track {trackIndex}";
+            _overlayTrackNames.Add(trackName ?? string.Empty);
+        }
 
-            var trackText = new FormattedText(
+        _overlayTrackTexts = null;
+        _overlayTrackTitleText = null;
+        _overlayTrackDpi = 0;
+        _overlayTrackMaxWidth = 0;
+    }
+
+    private void EnsureOverlayTrackTextCache(double headerRight, double dpi)
+    {
+        var maxWidth = headerRight - 4 - 10 - 8;
+        if (_overlayTrackTexts != null
+            && Math.Abs(_overlayTrackDpi - dpi) < 0.1
+            && Math.Abs(_overlayTrackMaxWidth - maxWidth) < 0.1
+            && _overlayTrackTexts.Count == _overlayTrackNames.Count)
+        {
+            return;
+        }
+
+        _overlayTrackTitleText = new FormattedText(
+            "Tracks",
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            LabelTypeface,
+            11,
+            Brushes.White,
+            dpi);
+
+        var texts = new List<FormattedText>(_overlayTrackNames.Count);
+        foreach (var trackName in _overlayTrackNames)
+        {
+            var text = new FormattedText(
                 trackName,
                 System.Globalization.CultureInfo.CurrentCulture,
                 FlowDirection.LeftToRight,
                 LabelTypeface,
                 10,
                 Brushes.White,
-                dpi);
+                dpi)
+            {
+                MaxTextWidth = maxWidth,
+                Trimming = TextTrimming.CharacterEllipsis
+            };
 
-            // Clip text if too long
-            trackText.MaxTextWidth = headerRight - x - colorBoxSize - 8;
-            trackText.Trimming = TextTrimming.CharacterEllipsis;
-
-            dc.DrawText(trackText, new Point(x + colorBoxSize + 4, y));
-            y += lineHeight;
+            texts.Add(text);
         }
+
+        _overlayTrackTexts = texts;
+        _overlayTrackDpi = dpi;
+        _overlayTrackMaxWidth = maxWidth;
     }
 
     private void InvalidateLaneHeaders()

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using Microsoft.Win32;
 using SMFTrace.Core.Models;
@@ -44,6 +45,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private ChannelState[] _channelStates = new ChannelState[16];
     private double _currentTempo = 120.0;
     private bool _isSeeking;
+    private bool _forceStopPosition;
     private DateTime _lastChannelStateUpdate;
     private InstrumentOption? _selectedDefaultInstrument;
 
@@ -448,10 +450,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _engine?.Pause();
     }
 
-    private void Stop()
+    private async void Stop()
     {
+        _forceStopPosition = _engine != null;
+        _isSeeking = false;
         _engine?.Stop();
+
+        await Task.Delay(500);
+
+        _forceStopPosition = false;
         CurrentTime = TimeSpan.Zero;
+        OnPropertyChanged(nameof(SeekPosition));
 
         if (_snapshotBuilder != null)
         {
@@ -577,6 +586,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         // Update on UI thread
         System.Windows.Application.Current?.Dispatcher.Invoke(() =>
         {
+            if (_forceStopPosition)
+            {
+                if (e.Time > TimeSpan.Zero)
+                {
+                    return;
+                }
+
+                _forceStopPosition = false;
+            }
+
             CurrentTime = e.Time;
 
             // Update diagnostics current tick for auto-scroll
