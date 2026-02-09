@@ -121,6 +121,7 @@
             <Setter Property="BorderBrush" Value="#555"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="MinHeight" Value="28"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="ItemContainerStyle">
@@ -157,7 +158,8 @@
                                     <ControlTemplate TargetType="ToggleButton">
                                         <Border Background="{TemplateBinding Background}"
                                                 BorderBrush="{TemplateBinding BorderBrush}"
-                                                BorderThickness="{TemplateBinding BorderThickness}">
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="3">
                                             <ContentPresenter/>
                                         </Border>
                                     </ControlTemplate>
@@ -195,8 +197,9 @@
                                    Focusable="False"
                                    PopupAnimation="Fade">
                                 <Border Background="#2D2D30"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="1">
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="3">
                                     <ScrollViewer Margin="2"
                                                   CanContentScroll="True"
                                                   HorizontalScrollBarVisibility="Disabled"
@@ -298,7 +301,7 @@
         </Grid.RowDefinitions>
 
         <!-- Toolbar -->
-        <ToolBarTray Grid.Row="0" Background="#2D2D30">
+        <ToolBarTray Grid.Row="0" Background="#2D2D30" Margin="2">
             <ToolBar Background="#2D2D30" Band="0" BandIndex="0">
                 <Button Command="{Binding OpenCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Open">
                     <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE8E5;"/>
@@ -332,6 +335,10 @@
                     <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE8EE;"/>
                 </ToggleButton>
                 <Separator/>
+                <Button Command="{Binding PanicCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Panic (All Notes Off)">
+                    <TextBlock FontFamily="Segoe UI Symbol" FontSize="14" Text="⚠"/>
+                </Button>
+                <Separator/>
                 <ComboBox ItemsSource="{Binding Devices}"
                           SelectedItem="{Binding SelectedDevice}"
                           DisplayMemberPath="Name"
@@ -352,12 +359,12 @@
                      Band="0"
                      BandIndex="1"
                      DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
-                <CheckBox Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource DarkCheckBoxStyle}"/>
-                <CheckBox Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource DarkCheckBoxStyle}"/>
-                <CheckBox Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Show note names in lane headers"/>
-                <CheckBox Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Show piano keys in lane headers"/>
-                <CheckBox Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Compact lane pitch range to used notes"/>
-                <CheckBox Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Overlay all tracks with distinct colors"/>
+                <ToggleButton Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource IconToggleButtonStyle}"/>
+                <ToggleButton Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource IconToggleButtonStyle}"/>
+                <ToggleButton Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show note names in lane headers"/>
+                <ToggleButton Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show piano keys in lane headers"/>
+                <ToggleButton Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Compact lane pitch range to used notes"/>
+                <ToggleButton Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Overlay all tracks with distinct colors"/>
                 <Separator/>
                 <TextBlock Text="Speed" VerticalAlignment="Center" Foreground="White" Margin="6,0,4,0"/>
                 <Slider Minimum="0.05"

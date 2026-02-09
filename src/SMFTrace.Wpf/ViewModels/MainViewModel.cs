@@ -99,6 +99,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         PlayCommand = new RelayCommand(Play, () => CanPlay);
         PauseCommand = new RelayCommand(Pause, () => CanPause);
         StopCommand = new RelayCommand(Stop, () => CanStop);
+        PanicCommand = new RelayCommand(Panic);
         PreviousCommand = new RelayCommand(PlayPrevious, () => CanNavigatePlaylist);
         NextCommand = new RelayCommand(PlayNext, () => CanNavigatePlaylist);
         ZoomInCommand = new RelayCommand(ZoomIn);
@@ -411,6 +412,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand PlayCommand { get; }
     public ICommand PauseCommand { get; }
     public ICommand StopCommand { get; }
+    public ICommand PanicCommand { get; }
     public ICommand PreviousCommand { get; }
     public ICommand NextCommand { get; }
     public ICommand ZoomInCommand { get; }
@@ -883,6 +885,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         if (_disposed) return;
         AllNotesCleared?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Panic()
+    {
+        StopAllNotesOnOutput();
+        RaiseAllNotesCleared();
     }
 
     private async void Play()
