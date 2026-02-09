@@ -52,6 +52,52 @@
             </Setter>
         </Style>
 
+        <Style TargetType="Button" x:Key="IconButtonStyle" BasedOn="{StaticResource ToolbarButtonStyle}">
+            <Setter Property="Padding" Value="6,3"/>
+            <Setter Property="Margin" Value="1"/>
+            <Setter Property="MinWidth" Value="32"/>
+            <Setter Property="MinHeight" Value="28"/>
+        </Style>
+
+        <Style TargetType="ToggleButton" x:Key="IconToggleButtonStyle">
+            <Setter Property="Padding" Value="6,3"/>
+            <Setter Property="Margin" Value="1"/>
+            <Setter Property="MinWidth" Value="32"/>
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Background" Value="#3C3C3C"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#505050"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#2A2A2A"/>
+                                <Setter Property="Foreground" Value="#666"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="ComboBox" x:Key="DarkComboBoxStyle">
             <Setter Property="Background" Value="#3C3C3C"/>
             <Setter Property="Foreground" Value="White"/>
@@ -196,6 +242,52 @@
             <Setter Property="Width" Value="1"/>
             <Setter Property="Margin" Value="6,4"/>
         </Style>
+
+        <Style TargetType="TabControl" x:Key="DarkTabControlStyle">
+            <Setter Property="Background" Value="#121212"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+
+        <Style TargetType="TabItem" x:Key="DarkTabItemStyle">
+            <Setter Property="Foreground" Value="#E6E6E6"/>
+            <Setter Property="Background" Value="#111111"/>
+            <Setter Property="BorderBrush" Value="#1E1E1E"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,4"/>
+            <Setter Property="Margin" Value="2,0,2,0"/>
+            <Setter Property="MinWidth" Value="96"/>
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6,6,0,0">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#000000"/>
+                                <Setter Property="BorderBrush" Value="#3A3A3A"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#161616"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#666666"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -208,19 +300,37 @@
         <!-- Toolbar -->
         <ToolBarTray Grid.Row="0" Background="#2D2D30">
             <ToolBar Background="#2D2D30" Band="0" BandIndex="0">
-                <Button Content="Open" Command="{Binding OpenCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
-                <Button Content="Add" Command="{Binding AddFilesCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Button Command="{Binding OpenCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Open">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE8E5;"/>
+                </Button>
+                <Button Command="{Binding AddFilesCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Add to playlist">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE710;"/>
+                </Button>
                 <Separator/>
-                <Button Content="Play" Command="{Binding PlayCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
-                <Button Content="Pause" Command="{Binding PauseCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
-                <Button Content="Stop" Command="{Binding StopCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
+                <Button Command="{Binding PlayCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Play">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE768;"/>
+                </Button>
+                <Button Command="{Binding PauseCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Pause">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE769;"/>
+                </Button>
+                <Button Command="{Binding StopCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Stop">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE71A;"/>
+                </Button>
                 <StackPanel Orientation="Horizontal"
                             VerticalAlignment="Center"
                             Visibility="{Binding ShowPlaylistNavigation, Converter={StaticResource BoolToVisibility}}">
-                    <Button Content="Prev" Command="{Binding PreviousCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
-                    <Button Content="Next" Command="{Binding NextCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
+                    <Button Command="{Binding PreviousCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Previous">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE892;"/>
+                    </Button>
+                    <Button Command="{Binding NextCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Next">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE893;"/>
+                    </Button>
                 </StackPanel>
-                <CheckBox Content="Loop" IsChecked="{Binding LoopPlayback}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Loop playback at end"/>
+                <ToggleButton IsChecked="{Binding LoopPlayback}"
+                              Style="{StaticResource IconToggleButtonStyle}"
+                              ToolTip="Loop playback">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE8EE;"/>
+                </ToggleButton>
                 <Separator/>
                 <ComboBox ItemsSource="{Binding Devices}"
                           SelectedItem="{Binding SelectedDevice}"
@@ -237,57 +347,52 @@
                           ToolTip="Default Instrument"
                           VerticalAlignment="Center"
                           Style="{StaticResource InstrumentSelectorStyle}"/>
-            </ToolBar>
-            <ToolBar Background="#2D2D30"
-                     Band="1"
-                     BandIndex="0"
+                </ToolBar>
+                <ToolBar Background="#2D2D30"
+                     Band="0"
+                     BandIndex="1"
                      DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
-                <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ToolBar}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-                        <CheckBox Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource DarkCheckBoxStyle}"/>
-                        <CheckBox Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource DarkCheckBoxStyle}"/>
-                        <CheckBox Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Show note names in lane headers"/>
-                        <CheckBox Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Show piano keys in lane headers"/>
-                        <CheckBox Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Compact lane pitch range to used notes"/>
-                        <CheckBox Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Overlay all tracks with distinct colors"/>
-                        <Separator/>
-                        <TextBlock Text="Speed" VerticalAlignment="Center" Foreground="White" Margin="6,0,4,0"/>
-                        <Slider Minimum="0.05"
-                            Maximum="4"
-                            Value="{Binding PlaybackRate, Mode=TwoWay}"
-                            Width="120"
-                            TickFrequency="0.05"
-                            IsSnapToTickEnabled="True"
-                            SmallChange="0.05"
-                            LargeChange="0.25"
-                            AutoToolTipPlacement="TopLeft"
-                            AutoToolTipPrecision="2"
-                            VerticalAlignment="Center"
-                            ToolTip="Playback speed (0.05x - 4x)"/>
-                        <TextBlock Text="{Binding PlaybackRate, StringFormat={}{0:0.00}x}" VerticalAlignment="Center" Foreground="White" Margin="6,0" MinWidth="44"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Separator/>
-                        <TextBlock Text="Zoom:" VerticalAlignment="Center" Foreground="White" Margin="4,0"/>
-                        <Button Content="+" Command="{Binding ZoomInCommand}" Width="30" Style="{StaticResource ToolbarButtonStyle}" MinWidth="30"/>
-                        <Button Content="-" Command="{Binding ZoomOutCommand}" Width="30" Style="{StaticResource ToolbarButtonStyle}" MinWidth="30"/>
-                    </StackPanel>
-                </Grid>
+                <CheckBox Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource DarkCheckBoxStyle}"/>
+                <CheckBox Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource DarkCheckBoxStyle}"/>
+                <CheckBox Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Show note names in lane headers"/>
+                <CheckBox Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Show piano keys in lane headers"/>
+                <CheckBox Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Compact lane pitch range to used notes"/>
+                <CheckBox Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Overlay all tracks with distinct colors"/>
+                <Separator/>
+                <TextBlock Text="Speed" VerticalAlignment="Center" Foreground="White" Margin="6,0,4,0"/>
+                <Slider Minimum="0.05"
+                    Maximum="4"
+                    Value="{Binding PlaybackRate, Mode=TwoWay}"
+                    Width="120"
+                    TickFrequency="0.05"
+                    IsSnapToTickEnabled="True"
+                    SmallChange="0.05"
+                    LargeChange="0.25"
+                    AutoToolTipPlacement="TopLeft"
+                    AutoToolTipPrecision="2"
+                    VerticalAlignment="Center"
+                    ToolTip="Playback speed (0.05x - 4x)"/>
+                <TextBlock Text="{Binding PlaybackRate, StringFormat={}{0:0.00}x}" VerticalAlignment="Center" Foreground="White" Margin="6,0" MinWidth="44"/>
+                <Separator/>
+                <TextBlock Text="Zoom:" VerticalAlignment="Center" Foreground="White" Margin="4,0"/>
+                <Button Content="+" Command="{Binding ZoomInCommand}" Width="30" Style="{StaticResource ToolbarButtonStyle}" MinWidth="30"/>
+                <Button Content="-" Command="{Binding ZoomOutCommand}" Width="30" Style="{StaticResource ToolbarButtonStyle}" MinWidth="30"/>
             </ToolBar>
         </ToolBarTray>
 
         <!-- Main Content -->
-        <TabControl x:Name="MainTabs" Grid.Row="1" Background="#252526">
+        <TabControl x:Name="MainTabs"
+                Grid.Row="1"
+                Background="#121212"
+                Style="{StaticResource DarkTabControlStyle}"
+                ItemContainerStyle="{StaticResource DarkTabItemStyle}">
             <TabItem Header="Piano Roll">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <controls:PianoRollPanel x:Name="PianoRoll"
                                              CurrentTime="{Binding CurrentTime}"
                                              TotalDuration="{Binding TotalDuration}"
                                              WindowSeconds="{Binding WindowSeconds, Mode=TwoWay}"
+                                             MidiFormat="{Binding MidiFormat}"
                                              ShowTempo="{Binding ShowTempo}"
                                              ShowBarsBeatsGrid="{Binding ShowBarsBeatsGrid}"
                                              ShowNoteNames="{Binding ShowNoteNames}"

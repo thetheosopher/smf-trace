@@ -43,6 +43,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showPianoKeys;
     private bool _compactPitchRange;
     private bool _overlayMode;
+    private int _midiFormat = 1;
     private PlaybackState _playbackState = PlaybackState.Stopped;
     private MidiDeviceInfo? _selectedDevice;
     private bool _isFileLoaded;
@@ -286,6 +287,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         set => SetField(ref _overlayMode, value);
     }
 
+    public int MidiFormat
+    {
+        get => _midiFormat;
+        private set => SetField(ref _midiFormat, value);
+    }
+
     public PlaybackState PlaybackState
     {
         get => _playbackState;
@@ -475,6 +482,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _snapshotBuilder = loadResult.SnapshotBuilder;
             _fileHasProgramChanges = loadResult.FileHasProgramChanges;
             _fileUsedChannels = loadResult.FileUsedChannels;
+            MidiFormat = _fileData.Format;
 
             // Create new engine
             _engine = new SequencerEngine(_fileData, new SMFTrace.Core.Configuration.PlaybackOptions

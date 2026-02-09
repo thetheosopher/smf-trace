@@ -67,6 +67,12 @@ public class PianoRollPanel : FrameworkElement
             typeof(bool),
             typeof(PianoRollPanel),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnOverlayModeChanged));
+    public static readonly DependencyProperty MidiFormatProperty =
+        DependencyProperty.Register(
+            nameof(MidiFormat),
+            typeof(int),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(1, FrameworkPropertyMetadataOptions.AffectsRender, OnMidiFormatChanged));
 
     public static readonly DependencyProperty ShowNoteNamesProperty =
         DependencyProperty.Register(
@@ -129,6 +135,11 @@ public class PianoRollPanel : FrameworkElement
     {
         get => (bool)GetValue(OverlayModeProperty);
         set => SetValue(OverlayModeProperty, value);
+    }
+    public int MidiFormat
+    {
+        get => (int)GetValue(MidiFormatProperty);
+        set => SetValue(MidiFormatProperty, value);
     }
 
     public bool ShowNoteNames
@@ -1016,7 +1027,7 @@ public class PianoRollPanel : FrameworkElement
 
             // Use track colors in overlay mode, velocity colors otherwise
             var brush = useTrackColors
-                ? TrackColorMapper.GetBrush(note.TrackIndex, note.Velocity)
+                ? TrackColorMapper.GetBrush(GetOverlayColorTrackIndex(note.TrackIndex), note.Velocity)
                 : VelocityColorMapper.GetBrush(note.Velocity);
 
             dc.DrawRectangle(brush, null, rect);
@@ -1481,7 +1492,7 @@ public class PianoRollPanel : FrameworkElement
 
             // Color indicator box
             var trackIndex = _overlayTrackIndices[i];
-            var trackBrush = TrackColorMapper.GetBrush(trackIndex);
+            var trackBrush = TrackColorMapper.GetBrush(GetOverlayColorTrackIndex(trackIndex));
             var colorRect = new Rect(x, y + 2, colorBoxSize, colorBoxSize);
             dc.DrawRectangle(trackBrush, null, colorRect);
 
@@ -1517,6 +1528,15 @@ public class PianoRollPanel : FrameworkElement
         _overlayTrackTitleText = null;
         _overlayTrackDpi = 0;
         _overlayTrackMaxWidth = 0;
+    }
+    private int GetOverlayColorTrackIndex(int trackIndex)
+    {
+        if (MidiFormat == 0 && _overlayTrackIndices.Count == 1 && trackIndex == _overlayTrackIndices[0])
+        {
+            return 1; // Blue instead of red for single-track Type 0
+        }
+
+        return trackIndex;
     }
 
     private void EnsureOverlayTrackTextCache(double headerRight, double dpi)
@@ -1561,6 +1581,14 @@ public class PianoRollPanel : FrameworkElement
         _overlayTrackTexts = texts;
         _overlayTrackDpi = dpi;
         _overlayTrackMaxWidth = maxWidth;
+    }
+
+    private static void OnMidiFormatChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var panel = (PianoRollPanel)d;
+        panel.BuildOverlayTrackIndexCache();
+        panel.RenderNotes();
+        panel.RenderLaneHeaders();
     }
 
     private void InvalidateLaneHeaders()
