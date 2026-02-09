@@ -214,6 +214,12 @@
                 <Button Content="Play" Command="{Binding PlayCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
                 <Button Content="Pause" Command="{Binding PauseCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
                 <Button Content="Stop" Command="{Binding StopCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding ShowPlaylistNavigation, Converter={StaticResource BoolToVisibility}}">
+                    <Button Content="Prev" Command="{Binding PreviousCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
+                    <Button Content="Next" Command="{Binding NextCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
+                </StackPanel>
                 <CheckBox Content="Loop" IsChecked="{Binding LoopPlayback}" Style="{StaticResource DarkCheckBoxStyle}" ToolTip="Loop playback at end"/>
                 <Separator/>
                 <ComboBox ItemsSource="{Binding Devices}"
@@ -232,7 +238,10 @@
                           VerticalAlignment="Center"
                           Style="{StaticResource InstrumentSelectorStyle}"/>
             </ToolBar>
-            <ToolBar Background="#2D2D30" Band="0" BandIndex="1">
+            <ToolBar Background="#2D2D30"
+                     Band="1"
+                     BandIndex="0"
+                     DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
                 <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ToolBar}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

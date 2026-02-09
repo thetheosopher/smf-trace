@@ -60,6 +60,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private readonly Dictionary<string, PlaylistMetadataCache> _playlistMetadataCache = new(StringComparer.OrdinalIgnoreCase);
     private DateTime _lastChannelStateUpdate;
     private InstrumentOption? _selectedDefaultInstrument;
+    private volatile bool _disposed;
 
     /// <summary>Diagnostics tab view model.</summary>
     public DiagnosticsViewModel Diagnostics { get; } = new();
@@ -97,6 +98,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         PlayCommand = new RelayCommand(Play, () => CanPlay);
         PauseCommand = new RelayCommand(Pause, () => CanPause);
         StopCommand = new RelayCommand(Stop, () => CanStop);
+        PreviousCommand = new RelayCommand(PlayPrevious, () => CanNavigatePlaylist);
+        NextCommand = new RelayCommand(PlayNext, () => CanNavigatePlaylist);
         ZoomInCommand = new RelayCommand(ZoomIn);
         ZoomOutCommand = new RelayCommand(ZoomOut);
         AddFilesCommand = new RelayCommand(AddFiles);
@@ -382,9 +385,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public event EventHandler<LiveNoteChanged>? LiveNoteChanged;
 
+    /// <summary>
+    /// Raised when all notes should be cleared (stop, new file load, etc.).
+    /// </summary>
+    public event EventHandler? AllNotesCleared;
+
     public bool CanPlay => SelectedDevice != null && PlaybackState != PlaybackState.Playing && (IsFileLoaded || PlaylistEntries.Count > 0);
     public bool CanPause => PlaybackState == PlaybackState.Playing;
     public bool CanStop => PlaybackState != PlaybackState.Stopped;
+    public bool ShowPlaylistNavigation => PlaylistEntries.Count > 1;
+    private bool CanNavigatePlaylist => PlaylistEntries.Count > 1 && !_isPlaylistTransition && !IsLoading;
 
     #endregion
 
@@ -394,6 +404,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand PlayCommand { get; }
     public ICommand PauseCommand { get; }
     public ICommand StopCommand { get; }
+    public ICommand PreviousCommand { get; }
+    public ICommand NextCommand { get; }
     public ICommand ZoomInCommand { get; }
     public ICommand ZoomOutCommand { get; }
     public ICommand AddFilesCommand { get; }
@@ -453,6 +465,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 StopAllNotesOnOutput();
                 oldEngine?.Dispose();
             });
+
+            // Clear any active note highlights
+            RaiseAllNotesCleared();
 
             var loadResult = await Task.Run(() => LoadMidiFile(filePath));
 
@@ -569,12 +584,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             initialChannelStates);
     }
 
-    public async Task AddToPlaylistAsync(IEnumerable<string> filePaths)
+    public Task AddToPlaylistAsync(IEnumerable<string> filePaths)
     {
         var files = FilterMidiFiles(filePaths).ToList();
         if (files.Count == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         EnsurePlaylistParser();
@@ -584,6 +599,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             PlaylistEntries.Add(entry);
             StartMetadataParse(entry, _playlistParseCts!.Token);
         }
+
+        return Task.CompletedTask;
     }
 
     public async Task ReplacePlaylistAsync(IEnumerable<string> filePaths, bool autoPlay)
@@ -630,6 +647,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             oldEngine?.Stop();
             StopAllNotesOnOutput();
         });
+
+        // Clear any active note highlights
+        RaiseAllNotesCleared();
 
         _userStopRequested = false;
     }
@@ -851,6 +871,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    private void RaiseAllNotesCleared()
+    {
+        if (_disposed) return;
+        AllNotesCleared?.Invoke(this, EventArgs.Empty);
+    }
+
     private async void Play()
     {
         if (_engine == null && PlaylistEntries.Count > 0)
@@ -869,12 +895,36 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _engine?.Pause();
     }
 
+    private async void PlayPrevious()
+    {
+        var index = GetPreviousPlaylistIndex();
+        if (index < 0)
+        {
+            return;
+        }
+
+        await PlayPlaylistIndexAsync(index);
+    }
+
+    private async void PlayNext()
+    {
+        var index = GetNextPlaylistIndex();
+        if (index < 0)
+        {
+            return;
+        }
+
+        await PlayPlaylistIndexAsync(index);
+    }
+
     private async void Stop()
     {
         _userStopRequested = true;
         _forceStopPosition = _engine != null;
         _isSeeking = false;
         _engine?.Stop();
+        StopAllNotesOnOutput();
+        RaiseAllNotesCleared();
 
         await Task.Delay(500);
 
@@ -945,6 +995,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private void OnPlaylistChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(CanPlay));
+        OnPropertyChanged(nameof(ShowPlaylistNavigation));
         UpdateEngineLoopMode();
 
         if (_nowPlayingIndex >= PlaylistEntries.Count)
@@ -956,6 +1007,55 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             _currentPlaylistIndex = PlaylistEntries.Count - 1;
         }
+    }
+
+    private int GetPreviousPlaylistIndex()
+    {
+        if (!CanNavigatePlaylist)
+        {
+            return -1;
+        }
+
+        var currentIndex = GetCurrentPlaylistIndexOrDefault();
+        var previousIndex = currentIndex - 1;
+        if (previousIndex < 0)
+        {
+            return LoopPlayback ? PlaylistEntries.Count - 1 : -1;
+        }
+
+        return previousIndex;
+    }
+
+    private int GetNextPlaylistIndex()
+    {
+        if (!CanNavigatePlaylist)
+        {
+            return -1;
+        }
+
+        var currentIndex = GetCurrentPlaylistIndexOrDefault();
+        var nextIndex = currentIndex + 1;
+        if (nextIndex >= PlaylistEntries.Count)
+        {
+            return LoopPlayback ? 0 : -1;
+        }
+
+        return nextIndex;
+    }
+
+    private int GetCurrentPlaylistIndexOrDefault()
+    {
+        if (_currentPlaylistIndex >= 0 && _currentPlaylistIndex < PlaylistEntries.Count)
+        {
+            return _currentPlaylistIndex;
+        }
+
+        if (_nowPlayingIndex >= 0 && _nowPlayingIndex < PlaylistEntries.Count)
+        {
+            return _nowPlayingIndex;
+        }
+
+        return 0;
     }
 
     private void UpdateEngineLoopMode()
@@ -1078,9 +1178,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnPositionChanged(object? sender, PositionChangedEventArgs e)
     {
-        // Update on UI thread
-        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        if (_disposed) return;
+
+        // Update on UI thread using BeginInvoke to prevent deadlock
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
         {
+            if (_disposed) return;
+
             if (_forceStopPosition)
             {
                 if (e.Time > TimeSpan.Zero)
@@ -1169,8 +1273,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnStateChanged(object? sender, PlaybackStateChangedEventArgs e)
     {
-        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        if (_disposed) return;
+
+        // Use BeginInvoke to prevent deadlock when stopping playback
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
         {
+            if (_disposed) return;
+
             PlaybackState = e.NewState;
 
             if (e.NewState == PlaybackState.Stopped)
@@ -1188,8 +1297,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnNoteActivityChanged(object? sender, NoteActivityChangedEventArgs e)
     {
-        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        if (_disposed) return;
+
+        // Use BeginInvoke to prevent deadlock when stopping playback
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
         {
+            if (_disposed) return;
             LiveNoteChanged?.Invoke(this, new LiveNoteChanged(e.Channel, e.Note, e.IsActive));
         });
     }
@@ -1219,6 +1332,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
+        // Set disposed flag first to prevent event handlers from running
+        _disposed = true;
+
         SaveSettings();
         if (_engine != null)
         {
@@ -1228,6 +1344,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         PlaylistEntries.CollectionChanged -= OnPlaylistChanged;
         CancelPlaylistParsing();
+
+        // Stop and dispose engine - these should be quick now that handlers are detached
         _engine?.Stop();
         _engine?.Dispose();
         _midiOutput?.Dispose();

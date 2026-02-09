@@ -31,6 +31,7 @@ public partial class MainWindow : Window
         // Subscribe to property changes to update piano roll
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.LiveNoteChanged += OnLiveNoteChanged;
+        _viewModel.AllNotesCleared += OnAllNotesCleared;
 
         Closing += OnClosing;
         StateChanged += OnStateChanged;
@@ -132,12 +133,18 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         _viewModel.LiveNoteChanged -= OnLiveNoteChanged;
+        _viewModel.AllNotesCleared -= OnAllNotesCleared;
         _viewModel.Dispose();
     }
 
     private void OnLiveNoteChanged(object? sender, LiveNoteChanged e)
     {
         PianoRoll.UpdateLiveActiveNote(e.Channel, e.Note, e.IsActive);
+    }
+
+    private void OnAllNotesCleared(object? sender, EventArgs e)
+    {
+        PianoRoll.ClearLiveActiveNotes();
     }
 
     private void SeekSlider_DragStarted(object sender, DragStartedEventArgs e)

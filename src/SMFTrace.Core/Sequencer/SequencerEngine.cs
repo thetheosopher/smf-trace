@@ -28,6 +28,7 @@ public sealed class SequencerEngine : IDisposable
     private readonly object _lock = new();
     private double _tempoMultiplier = 1.0;
     private readonly bool[,] _activeNotes = new bool[16, 128];
+    private volatile bool _disposing;
 
     private ISequencerOutput? _output;
     private CancellationTokenSource? _playbackCts;
@@ -161,10 +162,12 @@ public sealed class SequencerEngine : IDisposable
     {
         // Check state before doing work
         bool wasPlaying;
+        ISequencerOutput? output;
         lock (_lock)
         {
             wasPlaying = _state == PlaybackState.Playing;
             if (!wasPlaying) return;
+            output = _output;
         }
 
         // Cancel and wait outside the lock to avoid deadlock
@@ -178,13 +181,15 @@ public sealed class SequencerEngine : IDisposable
             // Expected on cancellation
         }
 
+        // Send AllNotesOff outside the lock to prevent blocking
+        output?.AllNotesOff();
+
         lock (_lock)
         {
             _playbackCts?.Dispose();
             _playbackCts = null;
             _playbackTask = null;
 
-            _output?.AllNotesOff();
             ClearActiveNotes();
             SetState(PlaybackState.Paused);
         }
@@ -195,6 +200,13 @@ public sealed class SequencerEngine : IDisposable
     /// </summary>
     public void Stop()
     {
+        // Capture output before doing work
+        ISequencerOutput? output;
+        lock (_lock)
+        {
+            output = _output;
+        }
+
         // First cancel and wait outside the lock to avoid deadlock
         _playbackCts?.Cancel();
         try
@@ -206,13 +218,15 @@ public sealed class SequencerEngine : IDisposable
             // Expected on cancellation
         }
 
+        // Send AllNotesOff outside the lock to prevent blocking
+        output?.AllNotesOff();
+
         lock (_lock)
         {
             _playbackCts?.Dispose();
             _playbackCts = null;
             _playbackTask = null;
 
-            _output?.AllNotesOff();
             ClearActiveNotes();
             _currentEventIndex = 0;
             _currentTick = 0;
@@ -608,7 +622,10 @@ public sealed class SequencerEngine : IDisposable
         }
 
         _activeNotes[channel, note] = isActive;
-        NoteActivityChanged?.Invoke(this, new NoteActivityChangedEventArgs(channel, note, isActive));
+        if (!_disposing)
+        {
+            NoteActivityChanged?.Invoke(this, new NoteActivityChangedEventArgs(channel, note, isActive));
+        }
     }
 
     private void ClearActiveNotes()
@@ -620,7 +637,10 @@ public sealed class SequencerEngine : IDisposable
                 if (_activeNotes[channel, note])
                 {
                     _activeNotes[channel, note] = false;
-                    NoteActivityChanged?.Invoke(this, new NoteActivityChangedEventArgs(channel, note, false));
+                    if (!_disposing)
+                    {
+                        NoteActivityChanged?.Invoke(this, new NoteActivityChangedEventArgs(channel, note, false));
+                    }
                 }
             }
         }
@@ -667,7 +687,7 @@ public sealed class SequencerEngine : IDisposable
     {
         var oldState = _state;
         _state = newState;
-        if (oldState != newState)
+        if (oldState != newState && !_disposing)
         {
             StateChanged?.Invoke(this, new PlaybackStateChangedEventArgs(oldState, newState));
         }
@@ -675,12 +695,14 @@ public sealed class SequencerEngine : IDisposable
 
     private void RaisePositionChanged()
     {
+        if (_disposing) return;
         PositionChanged?.Invoke(this, new PositionChangedEventArgs(_currentTick, _currentTime));
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
+        _disposing = true;
         StopPlaybackLoop();
     }
 }
