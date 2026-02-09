@@ -34,6 +34,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private double _windowSeconds = 30.0;
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
+    private bool _showTrackControls;
     private bool _loopPlayback;
     private double _playbackRate = 1.0;
     private int _defaultInstrumentProgram;
@@ -65,6 +66,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>Diagnostics tab view model.</summary>
     public DiagnosticsViewModel Diagnostics { get; } = new();
+
+    public ObservableCollection<TrackPlaybackViewModel> TrackPlaybackStates { get; } = new();
 
     public ObservableCollection<PlaylistEntry> PlaylistEntries { get; } = new();
 
@@ -110,6 +113,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         RefreshDevices();
 
         PlaylistEntries.CollectionChanged += OnPlaylistChanged;
+        TrackPlaybackStates.CollectionChanged += OnTrackPlaybackStatesChanged;
     }
 
     private void ApplySettingsToViewModel()
@@ -222,6 +226,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _showTempo;
         set => SetField(ref _showTempo, value);
+    }
+
+    public bool ShowTrackControls
+    {
+        get => _showTrackControls;
+        set => SetField(ref _showTrackControls, value);
     }
 
     public bool ShowBarsBeatsGrid
@@ -390,6 +400,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<MidiEventBase> Events => _fileData?.Events ?? [];
     public IReadOnlyList<TrackInfo> Tracks => _fileData?.Tracks ?? [];
     public ChannelState[] ChannelStates => _channelStates;
+    public bool HasTrackPlaybackStates => TrackPlaybackStates.Count > 0;
 
     public event EventHandler<LiveNoteChanged>? LiveNoteChanged;
 
@@ -509,6 +520,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _channelStates = loadResult.InitialChannelStates;
             ApplyDefaultInstrumentToChannelStates();
 
+            RebuildTrackPlaybackStates();
+
             // Initialize tempo from start of file
             if (_fileData.TempoMap != null)
             {
@@ -534,6 +547,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 _engine.SetOutput(new MidiOutputAdapter(_midiOutput));
                 SendDefaultInstrumentToDevice();
             }
+
+            UpdateTrackActivityMask();
 
             return true;
         }
@@ -1085,6 +1100,71 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _engine.LoopPlayback = useEngineLoop;
     }
 
+    private void OnTrackPlaybackStatesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasTrackPlaybackStates));
+        UpdateTrackActivityMask();
+    }
+
+    private void RebuildTrackPlaybackStates()
+    {
+        foreach (var track in TrackPlaybackStates)
+        {
+            track.PropertyChanged -= OnTrackPlaybackStateChanged;
+        }
+
+        TrackPlaybackStates.Clear();
+
+        if (_fileData == null)
+        {
+            OnPropertyChanged(nameof(HasTrackPlaybackStates));
+            return;
+        }
+
+        foreach (var track in _fileData.Tracks)
+        {
+            var vm = new TrackPlaybackViewModel(track.Index, track.Name);
+            vm.PropertyChanged += OnTrackPlaybackStateChanged;
+            TrackPlaybackStates.Add(vm);
+        }
+
+        OnPropertyChanged(nameof(HasTrackPlaybackStates));
+    }
+
+    private void OnTrackPlaybackStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TrackPlaybackViewModel.IsMuted) ||
+            e.PropertyName == nameof(TrackPlaybackViewModel.IsSolo))
+        {
+            UpdateTrackActivityMask();
+        }
+    }
+
+    private void UpdateTrackActivityMask()
+    {
+        if (_engine == null)
+        {
+            return;
+        }
+
+        if (TrackPlaybackStates.Count == 0)
+        {
+            _engine.SetTrackActivityMask([]);
+            return;
+        }
+
+        var anySolo = TrackPlaybackStates.Any(track => track.IsSolo);
+        var mask = new bool[TrackPlaybackStates.Count];
+
+        for (var i = 0; i < TrackPlaybackStates.Count; i++)
+        {
+            var track = TrackPlaybackStates[i];
+            mask[i] = anySolo ? track.IsSolo : !track.IsMuted;
+        }
+
+        _engine.SetTrackActivityMask(mask);
+    }
+
     private void SetNowPlaying(int index)
     {
         if (_nowPlayingIndex >= 0 && _nowPlayingIndex < PlaylistEntries.Count)
@@ -1359,6 +1439,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _engine.NoteActivityChanged -= OnNoteActivityChanged;
         }
         PlaylistEntries.CollectionChanged -= OnPlaylistChanged;
+        TrackPlaybackStates.CollectionChanged -= OnTrackPlaybackStatesChanged;
+        foreach (var track in TrackPlaybackStates)
+        {
+            track.PropertyChanged -= OnTrackPlaybackStateChanged;
+        }
         CancelPlaylistParsing();
 
         // Stop and dispose engine - these should be quick now that handlers are detached

@@ -161,6 +161,50 @@ public sealed class StateSnapshotBuilder
     }
 
     /// <summary>
+    /// Rebuilds channel state at a specific tick using a track activity mask.
+    /// </summary>
+    /// <param name="targetTick">The tick to rebuild state for.</param>
+    /// <param name="activeTracks">Track activity mask (true = include).</param>
+    /// <returns>Array of 16 channel states.</returns>
+    public ChannelState[] RebuildStateAtTick(long targetTick, bool[]? activeTracks)
+    {
+        if (activeTracks == null || activeTracks.Length == 0 || AreAllTracksActive(activeTracks))
+        {
+            return RebuildStateAtTick(targetTick);
+        }
+
+        // Reset to defaults for a full rebuild with filtering.
+        for (var i = 0; i < 16; i++)
+        {
+            _currentState[i].Reset();
+        }
+
+        for (var i = 0; i < _events.Count; i++)
+        {
+            var evt = _events[i];
+            if (evt.AbsoluteTick > targetTick)
+            {
+                break;
+            }
+
+            if (!IsTrackActive(evt.TrackIndex, activeTracks))
+            {
+                continue;
+            }
+
+            ApplyEventToState(evt);
+        }
+
+        var result = new ChannelState[16];
+        for (var i = 0; i < 16; i++)
+        {
+            result[i] = _currentState[i].ToImmutable();
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Gets the event index to resume playback from after seeking to a tick.
     /// </summary>
     /// <param name="targetTick">The target tick.</param>
@@ -267,5 +311,23 @@ public sealed class StateSnapshotBuilder
                 pcState.HasProgramChange = true;
                 break;
         }
+    }
+
+    private static bool IsTrackActive(int trackIndex, bool[] activeTracks)
+    {
+        return trackIndex >= 0 && trackIndex < activeTracks.Length ? activeTracks[trackIndex] : true;
+    }
+
+    private static bool AreAllTracksActive(bool[] activeTracks)
+    {
+        for (var i = 0; i < activeTracks.Length; i++)
+        {
+            if (!activeTracks[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

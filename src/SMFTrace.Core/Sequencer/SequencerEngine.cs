@@ -29,6 +29,7 @@ public sealed class SequencerEngine : IDisposable
     private double _tempoMultiplier = 1.0;
     private readonly bool[,] _activeNotes = new bool[16, 128];
     private volatile bool _disposing;
+    private bool[] _trackActivityMask;
 
     private ISequencerOutput? _output;
     private CancellationTokenSource? _playbackCts;
@@ -73,6 +74,7 @@ public sealed class SequencerEngine : IDisposable
         _options = options ?? new PlaybackOptions();
         _snapshotBuilder = new StateSnapshotBuilder(fileData.Events);
         _tempoMultiplier = Math.Clamp(_options.TempoMultiplier, 0.05, 4.0);
+        _trackActivityMask = CreateDefaultTrackMask(fileData.Tracks.Count);
     }
 
     /// <summary>Current playback state.</summary>
@@ -320,7 +322,7 @@ public sealed class SequencerEngine : IDisposable
             _output?.AllNotesOff();
 
             // 2. Rebuild channel state at current tick
-            var channelStates = _snapshotBuilder.RebuildStateAtTick(_currentTick);
+            var channelStates = _snapshotBuilder.RebuildStateAtTick(_currentTick, _trackActivityMask);
 
             // 3. Emit bank/program/controller state to device
             EmitStateToDevice(channelStates);
@@ -350,6 +352,42 @@ public sealed class SequencerEngine : IDisposable
         BeginScrub();
         Scrub(time);
         EndScrub();
+    }
+
+    /// <summary>
+    /// Sets the per-track activity mask (true = track is audible).
+    /// </summary>
+    public void SetTrackActivityMask(bool[] activeTracks)
+    {
+        ArgumentNullException.ThrowIfNull(activeTracks);
+
+        ISequencerOutput? output;
+        bool shouldRefresh;
+        lock (_lock)
+        {
+            if (AreTrackMasksEqual(_trackActivityMask, activeTracks))
+            {
+                return;
+            }
+
+            _trackActivityMask = (bool[])activeTracks.Clone();
+            output = _output;
+            shouldRefresh = _state != PlaybackState.Scrubbing;
+        }
+
+        if (!shouldRefresh)
+        {
+            return;
+        }
+
+        output?.AllNotesOff();
+
+        lock (_lock)
+        {
+            ClearActiveNotes();
+            var channelStates = _snapshotBuilder.RebuildStateAtTick(_currentTick, _trackActivityMask);
+            EmitStateToDevice(channelStates);
+        }
     }
 
     private void StartPlaybackLoop()
@@ -530,7 +568,7 @@ public sealed class SequencerEngine : IDisposable
             _currentTick = 0;
             _currentTime = TimeSpan.Zero;
 
-            var channelStates = _snapshotBuilder.RebuildStateAtTick(0);
+            var channelStates = _snapshotBuilder.RebuildStateAtTick(0, _trackActivityMask);
             EmitStateToDevice(channelStates);
 
             _lastPositionUpdate = TimeSpan.Zero;
@@ -543,6 +581,11 @@ public sealed class SequencerEngine : IDisposable
     private void DispatchEvent(MidiEventBase evt)
     {
         if (_output == null)
+        {
+            return;
+        }
+
+        if (!IsTrackActive(evt.TrackIndex))
         {
             return;
         }
@@ -697,6 +740,48 @@ public sealed class SequencerEngine : IDisposable
     {
         if (_disposing) return;
         PositionChanged?.Invoke(this, new PositionChangedEventArgs(_currentTick, _currentTime));
+    }
+
+    private bool IsTrackActive(int trackIndex)
+    {
+        return trackIndex >= 0 && trackIndex < _trackActivityMask.Length
+            ? _trackActivityMask[trackIndex]
+            : true;
+    }
+
+    private static bool[] CreateDefaultTrackMask(int trackCount)
+    {
+        if (trackCount <= 0)
+        {
+            return [];
+        }
+
+        var mask = new bool[trackCount];
+        Array.Fill(mask, true);
+        return mask;
+    }
+
+    private static bool AreTrackMasksEqual(bool[] left, bool[] right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Length; i++)
+        {
+            if (left[i] != right[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <inheritdoc />

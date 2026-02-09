@@ -98,6 +98,12 @@
             </Setter>
         </Style>
 
+        <Style TargetType="ToggleButton" x:Key="TrackToggleButtonStyle" BasedOn="{StaticResource IconToggleButtonStyle}">
+            <Setter Property="MinWidth" Value="26"/>
+            <Setter Property="MinHeight" Value="22"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
         <Style TargetType="ComboBox" x:Key="DarkComboBoxStyle">
             <Setter Property="Background" Value="#3C3C3C"/>
             <Setter Property="Foreground" Value="White"/>
@@ -359,6 +365,7 @@
                      Band="0"
                      BandIndex="1"
                      DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                <ToggleButton Content="M/S" IsChecked="{Binding ShowTrackControls}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show track mute/solo"/>
                 <ToggleButton Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource IconToggleButtonStyle}"/>
                 <ToggleButton Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource IconToggleButtonStyle}"/>
                 <ToggleButton Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show note names in lane headers"/>
@@ -394,20 +401,68 @@
                 Style="{StaticResource DarkTabControlStyle}"
                 ItemContainerStyle="{StaticResource DarkTabItemStyle}">
             <TabItem Header="Piano Roll">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <controls:PianoRollPanel x:Name="PianoRoll"
-                                             CurrentTime="{Binding CurrentTime}"
-                                             TotalDuration="{Binding TotalDuration}"
-                                             WindowSeconds="{Binding WindowSeconds, Mode=TwoWay}"
-                                             MidiFormat="{Binding MidiFormat}"
-                                             ShowTempo="{Binding ShowTempo}"
-                                             ShowBarsBeatsGrid="{Binding ShowBarsBeatsGrid}"
-                                             ShowNoteNames="{Binding ShowNoteNames}"
-                                             ShowPianoKeys="{Binding ShowPianoKeys}"
-                                             CompactPitchRange="{Binding CompactPitchRange}"
-                                             OverlayMode="{Binding OverlayMode}"
-                                             IsPlaying="{Binding IsPlaying}"/>
-                </ScrollViewer>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Width="220"
+                            Background="#1B1B20"
+                            BorderBrush="#2A2A2A"
+                            BorderThickness="0,0,1,0"
+                            Visibility="{Binding ShowTrackControls, Converter={StaticResource BoolToVisibility}}">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top"
+                                       Text="Tracks"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"
+                                       Margin="10,8,10,6"/>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding TrackPlaybackStates}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="8,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding DisplayName}" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <ToggleButton Grid.Column="1"
+                                                              Content="M"
+                                                              ToolTip="Mute"
+                                                              IsChecked="{Binding IsMuted}"
+                                                              Style="{StaticResource TrackToggleButtonStyle}"/>
+                                                <ToggleButton Grid.Column="2"
+                                                              Content="S"
+                                                              ToolTip="Solo"
+                                                              IsChecked="{Binding IsSolo}"
+                                                              Style="{StaticResource TrackToggleButtonStyle}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <controls:PianoRollPanel x:Name="PianoRoll"
+                                                 CurrentTime="{Binding CurrentTime}"
+                                                 TotalDuration="{Binding TotalDuration}"
+                                                 WindowSeconds="{Binding WindowSeconds, Mode=TwoWay}"
+                                                 MidiFormat="{Binding MidiFormat}"
+                                                 ShowTempo="{Binding ShowTempo}"
+                                                 ShowBarsBeatsGrid="{Binding ShowBarsBeatsGrid}"
+                                                 ShowNoteNames="{Binding ShowNoteNames}"
+                                                 ShowPianoKeys="{Binding ShowPianoKeys}"
+                                                 CompactPitchRange="{Binding CompactPitchRange}"
+                                                 OverlayMode="{Binding OverlayMode}"
+                                                 IsPlaying="{Binding IsPlaying}"/>
+                    </ScrollViewer>
+                </Grid>
             </TabItem>
             <TabItem Header="Playlist">
                 <DataGrid x:Name="PlaylistGrid"
@@ -480,7 +535,13 @@
                         <DataGridTextColumn Header="Time Sig" Binding="{Binding TimeSignatureDisplay}" Width="Auto"/>
                         <DataGridTextColumn Header="Key" Binding="{Binding KeySignatureDisplay}" Width="Auto"/>
                         <DataGridTextColumn Header="SMF" Binding="{Binding SmfTypeDisplay}" Width="Auto"/>
-                        <DataGridTextColumn Header="Tracks" Binding="{Binding TrackCount}" Width="Auto"/>
+                        <DataGridTextColumn Header="Tracks" Binding="{Binding TrackCount}" Width="Auto">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Right"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                         <DataGridTextColumn Header="SysEx" Binding="{Binding SysExPresentDisplay}" Width="Auto"/>
                         <DataGridTextColumn Header="Lyrics" Binding="{Binding LyricsPresentDisplay}" Width="Auto"/>
                         <DataGridTextColumn Header="Path" Binding="{Binding FilePath}" Width="2*"/>
