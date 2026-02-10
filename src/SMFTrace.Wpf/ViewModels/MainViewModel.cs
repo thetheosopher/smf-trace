@@ -60,6 +60,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private int _currentPlaylistIndex = -1;
     private int _nowPlayingIndex = -1;
     private CancellationTokenSource? _playlistParseCts;
+    private int _playlistParseInFlight;
     private readonly Dictionary<string, PlaylistMetadataCache> _playlistMetadataCache = new(StringComparer.OrdinalIgnoreCase);
     private DateTime _lastChannelStateUpdate;
     private InstrumentOption? _selectedDefaultInstrument;
@@ -382,8 +383,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public bool IsLoading
     {
         get => _isLoading;
-        private set => SetField(ref _isLoading, value);
+        private set
+        {
+            if (SetField(ref _isLoading, value))
+            {
+                OnPropertyChanged(nameof(IsBusy));
+            }
+        }
     }
+
+    public bool IsPlaylistMetadataParsing => _playlistParseInFlight > 0;
+
+    public bool IsBusy => IsLoading || IsPlaylistMetadataParsing;
 
     public double CurrentTempo
     {
@@ -783,25 +794,26 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private void StartMetadataParse(PlaylistEntry entry, CancellationToken token)
     {
         entry.MetadataStatus = PlaylistMetadataStatus.Parsing;
+        IncrementPlaylistParsing();
 
         _ = Task.Run(() =>
         {
-            if (token.IsCancellationRequested)
-            {
-                return;
-            }
-
-            if (TryGetCachedMetadata(entry.FilePath, out var cached))
-            {
-                if (!token.IsCancellationRequested)
-                {
-                    ApplyMetadata(entry, cached);
-                }
-                return;
-            }
-
             try
             {
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                if (TryGetCachedMetadata(entry.FilePath, out var cached))
+                {
+                    if (!token.IsCancellationRequested)
+                    {
+                        ApplyMetadata(entry, cached);
+                    }
+                    return;
+                }
+
                 var metadata = PlaylistMetadataParser.Parse(entry.FilePath);
                 CacheMetadata(entry.FilePath, metadata);
                 if (!token.IsCancellationRequested)
@@ -816,7 +828,31 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     ApplyMetadataFailed(entry);
                 }
             }
+            finally
+            {
+                DecrementPlaylistParsing();
+            }
         }, token);
+    }
+
+    private void IncrementPlaylistParsing()
+    {
+        if (Interlocked.Increment(ref _playlistParseInFlight) == 1)
+        {
+            OnPropertyChanged(nameof(IsPlaylistMetadataParsing));
+            OnPropertyChanged(nameof(IsBusy));
+        }
+    }
+
+    private void DecrementPlaylistParsing()
+    {
+        var value = Interlocked.Decrement(ref _playlistParseInFlight);
+        if (value <= 0)
+        {
+            Interlocked.Exchange(ref _playlistParseInFlight, 0);
+            OnPropertyChanged(nameof(IsPlaylistMetadataParsing));
+            OnPropertyChanged(nameof(IsBusy));
+        }
     }
 
     private static void ApplyMetadata(PlaylistEntry entry, PlaylistMetadata metadata)

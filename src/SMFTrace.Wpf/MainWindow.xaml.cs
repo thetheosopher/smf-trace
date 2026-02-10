@@ -127,11 +127,17 @@ public partial class MainWindow : Window
                 // Update tempo display
                 PianoRoll.UpdateTempo(_viewModel.EffectiveTempo);
                 break;
+
+            case nameof(MainViewModel.IsLoading):
+            case nameof(MainViewModel.IsBusy):
+                Mouse.OverrideCursor = _viewModel.IsBusy ? Cursors.Wait : null;
+                break;
         }
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
+        Mouse.OverrideCursor = null;
         _viewModel.LiveNoteChanged -= OnLiveNoteChanged;
         _viewModel.AllNotesCleared -= OnAllNotesCleared;
         _viewModel.Dispose();
