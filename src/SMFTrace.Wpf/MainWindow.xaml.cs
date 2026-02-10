@@ -246,6 +246,7 @@ public partial class MainWindow : Window
         }
     }
 
+
     private static bool IsMidiFile(string filePath)
     {
         var ext = Path.GetExtension(filePath);

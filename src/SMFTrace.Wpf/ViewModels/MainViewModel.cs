@@ -35,6 +35,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
     private bool _showTrackControls;
+    private bool _showLyricsLane;
     private bool _loopPlayback;
     private double _playbackRate = 1.0;
     private int _defaultInstrumentProgram;
@@ -62,12 +63,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private readonly Dictionary<string, PlaylistMetadataCache> _playlistMetadataCache = new(StringComparer.OrdinalIgnoreCase);
     private DateTime _lastChannelStateUpdate;
     private InstrumentOption? _selectedDefaultInstrument;
+    private bool _hasLyrics;
+    private int _currentLyricIndex = -1;
     private volatile bool _disposed;
 
     /// <summary>Diagnostics tab view model.</summary>
     public DiagnosticsViewModel Diagnostics { get; } = new();
 
     public ObservableCollection<TrackPlaybackViewModel> TrackPlaybackStates { get; } = new();
+
+    public ObservableCollection<LyricLineViewModel> Lyrics { get; } = new();
 
     public ObservableCollection<PlaylistEntry> PlaylistEntries { get; } = new();
 
@@ -240,6 +245,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         set => SetField(ref _showBarsBeatsGrid, value);
     }
 
+    public bool ShowLyricsLane
+    {
+        get => _showLyricsLane;
+        set => SetField(ref _showLyricsLane, value);
+    }
+
     public bool LoopPlayback
     {
         get => _loopPlayback;
@@ -401,6 +412,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<TrackInfo> Tracks => _fileData?.Tracks ?? [];
     public ChannelState[] ChannelStates => _channelStates;
     public bool HasTrackPlaybackStates => TrackPlaybackStates.Count > 0;
+    public bool HasLyrics
+    {
+        get => _hasLyrics;
+        private set => SetField(ref _hasLyrics, value);
+    }
 
     public event EventHandler<LiveNoteChanged>? LiveNoteChanged;
 
@@ -470,6 +486,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             IsFileLoaded = false;
+            ClearLyrics();
             // Stop any existing playback
             var oldEngine = _engine;
             if (_engine != null)
@@ -521,6 +538,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             ApplyDefaultInstrumentToChannelStates();
 
             RebuildTrackPlaybackStates();
+            LoadLyricsFromEvents(_fileData.Events);
 
             // Initialize tempo from start of file
             if (_fileData.TempoMap != null)
@@ -970,6 +988,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(ChannelStates));
         }
 
+        UpdateCurrentLyric(TimeSpan.Zero);
+
         if (_fileData?.TempoMap != null)
         {
             var tempo = _fileData.TempoMap.GetTempoAtTime(new Melanchall.DryWetMidi.Interaction.MidiTimeSpan(0));
@@ -1165,6 +1185,84 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _engine.SetTrackActivityMask(mask);
     }
 
+    private void LoadLyricsFromEvents(IReadOnlyList<MidiEventBase> events)
+    {
+        Lyrics.Clear();
+        ShowLyricsLane = false;
+
+        var lyricEvents = events
+            .OfType<MetaEvent>()
+            .Where(evt => evt.MetaType == 0x05 && !string.IsNullOrWhiteSpace(evt.TextContent))
+            .OrderBy(evt => evt.Time)
+            .ToList();
+
+        foreach (var lyric in lyricEvents)
+        {
+            Lyrics.Add(new LyricLineViewModel(lyric.Time, lyric.TextContent!.Trim()));
+        }
+
+        HasLyrics = Lyrics.Count > 0;
+        _currentLyricIndex = -1;
+    }
+
+    private void ClearLyrics()
+    {
+        Lyrics.Clear();
+        HasLyrics = false;
+        ShowLyricsLane = false;
+        _currentLyricIndex = -1;
+    }
+
+    private void UpdateCurrentLyric(TimeSpan time)
+    {
+        if (!HasLyrics || Lyrics.Count == 0)
+        {
+            return;
+        }
+
+        var index = FindLyricIndex(time);
+        if (index == _currentLyricIndex)
+        {
+            return;
+        }
+
+        if (_currentLyricIndex >= 0 && _currentLyricIndex < Lyrics.Count)
+        {
+            Lyrics[_currentLyricIndex].IsActive = false;
+        }
+
+        _currentLyricIndex = index;
+        if (_currentLyricIndex >= 0 && _currentLyricIndex < Lyrics.Count)
+        {
+            Lyrics[_currentLyricIndex].IsActive = true;
+        }
+    }
+
+    private int FindLyricIndex(TimeSpan time)
+    {
+        var low = 0;
+        var high = Lyrics.Count - 1;
+        var best = -1;
+
+        while (low <= high)
+        {
+            var mid = (low + high) / 2;
+            var midTime = Lyrics[mid].Time;
+
+            if (midTime <= time)
+            {
+                best = mid;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return best;
+    }
+
     private void SetNowPlaying(int index)
     {
         if (_nowPlayingIndex >= 0 && _nowPlayingIndex < PlaylistEntries.Count)
@@ -1313,6 +1411,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 ApplyDefaultInstrumentToChannelStates();
                 OnPropertyChanged(nameof(ChannelStates));
             }
+
+            UpdateCurrentLyric(e.Time);
         });
     }
 

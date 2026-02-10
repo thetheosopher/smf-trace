@@ -366,6 +366,11 @@
                      BandIndex="1"
                      DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
                 <ToggleButton Content="M/S" IsChecked="{Binding ShowTrackControls}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show track mute/solo"/>
+                <ToggleButton Content="Lyrics"
+                              IsChecked="{Binding ShowLyricsLane}"
+                              Style="{StaticResource IconToggleButtonStyle}"
+                              ToolTip="Show lyrics lane"
+                              Visibility="{Binding HasLyrics, Converter={StaticResource BoolToVisibility}}"/>
                 <ToggleButton Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource IconToggleButtonStyle}"/>
                 <ToggleButton Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource IconToggleButtonStyle}"/>
                 <ToggleButton Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show note names in lane headers"/>
@@ -460,7 +465,9 @@
                                                  ShowPianoKeys="{Binding ShowPianoKeys}"
                                                  CompactPitchRange="{Binding CompactPitchRange}"
                                                  OverlayMode="{Binding OverlayMode}"
-                                                 IsPlaying="{Binding IsPlaying}"/>
+                                                 IsPlaying="{Binding IsPlaying}"
+                                                 ShowLyricsLane="{Binding ShowLyricsLane}"
+                                                 Lyrics="{Binding Lyrics}"/>
                     </ScrollViewer>
                 </Grid>
             </TabItem>

@@ -1,9 +1,12 @@
+using System.ComponentModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using SMFTrace.Core.Models;
+using SMFTrace.Wpf.ViewModels;
 
 namespace SMFTrace.Wpf.Controls;
 
@@ -60,6 +63,20 @@ public class PianoRollPanel : FrameworkElement
             typeof(bool),
             typeof(PianoRollPanel),
             new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty ShowLyricsLaneProperty =
+        DependencyProperty.Register(
+            nameof(ShowLyricsLane),
+            typeof(bool),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnShowLyricsLaneChanged));
+
+    public static readonly DependencyProperty LyricsProperty =
+        DependencyProperty.Register(
+            nameof(Lyrics),
+            typeof(IReadOnlyList<LyricLineViewModel>),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(Array.Empty<LyricLineViewModel>(), OnLyricsChanged));
 
     public static readonly DependencyProperty OverlayModeProperty =
         DependencyProperty.Register(
@@ -129,6 +146,18 @@ public class PianoRollPanel : FrameworkElement
     {
         get => (bool)GetValue(ShowBarsBeatsGridProperty);
         set => SetValue(ShowBarsBeatsGridProperty, value);
+    }
+
+    public bool ShowLyricsLane
+    {
+        get => (bool)GetValue(ShowLyricsLaneProperty);
+        set => SetValue(ShowLyricsLaneProperty, value);
+    }
+
+    public IReadOnlyList<LyricLineViewModel> Lyrics
+    {
+        get => (IReadOnlyList<LyricLineViewModel>)GetValue(LyricsProperty);
+        set => SetValue(LyricsProperty, value);
     }
 
     public bool OverlayMode
@@ -231,11 +260,29 @@ public class PianoRollPanel : FrameworkElement
         }
     }
 
+    private static void OnShowLyricsLaneChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel.RebuildLanes();
+            panel.InvalidateMeasure();
+            panel.InvalidateVisual();
+        }
+    }
+
     private static void OnCompactPitchRangeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is PianoRollPanel panel)
         {
             panel.RebuildLanes();
+        }
+    }
+
+    private static void OnLyricsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel.UpdateLyricsCollection(e.NewValue as IReadOnlyList<LyricLineViewModel>);
         }
     }
 
@@ -260,6 +307,7 @@ public class PianoRollPanel : FrameworkElement
     private readonly DrawingVisual _playheadVisual;
     private readonly DrawingVisual _laneHeadersVisual;
     private readonly DrawingVisual _tempoVisual;
+    private readonly DrawingVisual _lyricsVisual;
 
     private ScrollViewer? _scrollViewer;
 
@@ -289,6 +337,9 @@ public class PianoRollPanel : FrameworkElement
     private double _overlayTrackDpi;
     private double _overlayTrackMaxWidth;
 
+    private IReadOnlyList<LyricLineViewModel> _lyrics = [];
+    private INotifyCollectionChanged? _lyricsCollection;
+
     // Cached resources
     private static readonly Pen PlayheadPen;
     private static readonly Pen GridPen;
@@ -305,6 +356,13 @@ public class PianoRollPanel : FrameworkElement
     private static readonly Pen PianoActiveInnerPen;
     private static readonly Pen PianoKeyOutlinePen;
     private static readonly Typeface LabelTypeface;
+    private static readonly Typeface LyricsTypeface;
+    private static readonly Brush LyricsLaneBrush;
+    private static readonly Brush LyricsTextBrush;
+    private static readonly Brush LyricsTextDimBrush;
+    private static readonly Pen LyricsSeparatorPen;
+
+    private const double LyricsLaneHeight = 26.0;
 
     #endregion
 
@@ -355,6 +413,16 @@ public class PianoRollPanel : FrameworkElement
         PianoKeyOutlinePen.Freeze();
 
         LabelTypeface = new Typeface("Segoe UI");
+
+        LyricsTypeface = new Typeface("Segoe UI Semibold");
+        LyricsLaneBrush = new SolidColorBrush(Color.FromRgb(30, 30, 36));
+        LyricsLaneBrush.Freeze();
+        LyricsTextBrush = new SolidColorBrush(Color.FromRgb(241, 211, 74));
+        LyricsTextBrush.Freeze();
+        LyricsTextDimBrush = new SolidColorBrush(Color.FromRgb(171, 150, 74));
+        LyricsTextDimBrush.Freeze();
+        LyricsSeparatorPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 70, 70, 70)), 1);
+        LyricsSeparatorPen.Freeze();
     }
 
     #endregion
@@ -371,10 +439,12 @@ public class PianoRollPanel : FrameworkElement
         _playheadVisual = new DrawingVisual();
         _laneHeadersVisual = new DrawingVisual();
         _tempoVisual = new DrawingVisual();
+        _lyricsVisual = new DrawingVisual();
 
         _visuals.Add(_backgroundVisual);
         _visuals.Add(_gridVisual);
         _visuals.Add(_notesVisual);
+        _visuals.Add(_lyricsVisual);
         _visuals.Add(_playheadVisual);
         _visuals.Add(_laneHeadersVisual);
         _visuals.Add(_tempoVisual);
@@ -418,6 +488,12 @@ public class PianoRollPanel : FrameworkElement
     private bool TryGetContentClipRect(out Rect rect)
     {
         GetVisibleVerticalRange(out var top, out var bottom);
+
+        var lyricsHeight = GetLyricsLaneHeight();
+        if (lyricsHeight > 0)
+        {
+            top = Math.Max(top, lyricsHeight);
+        }
 
         var width = ActualWidth - PianoRollSettings.LaneHeaderWidth;
         var height = bottom - top;
@@ -554,10 +630,15 @@ public class PianoRollPanel : FrameworkElement
         if (OverlayMode && _lanes.Count > 0)
         {
             var lane = _lanes[0];
-            var targetHeight = finalSize.Height;
+            var targetHeight = finalSize.Height - GetLyricsLaneHeight();
             if (CompactPitchRange && lane.PitchCount > 0)
             {
                 targetHeight = Math.Min(targetHeight, lane.PitchCount * 16.0);
+            }
+
+            if (targetHeight < 0)
+            {
+                targetHeight = 0;
             }
 
             if (Math.Abs(lane.Height - targetHeight) > 0.1)
@@ -574,7 +655,7 @@ public class PianoRollPanel : FrameworkElement
     {
         if (_lanes.Count == 0)
         {
-            return 0;
+            return GetLyricsLaneHeight();
         }
 
         var total = 0.0;
@@ -584,7 +665,7 @@ public class PianoRollPanel : FrameworkElement
         }
 
         total += (_lanes.Count - 1) * PianoRollSettings.LaneGap;
-        return total;
+        return total + GetLyricsLaneHeight();
     }
 
     private (int Low, int High) GetLanePitchRange(List<PairedNote> notes)
@@ -635,6 +716,7 @@ public class PianoRollPanel : FrameworkElement
     private void RebuildLanes()
     {
         _lanes.Clear();
+        var lyricsOffset = GetLyricsLaneHeight();
 
         if (OverlayMode)
         {
@@ -642,6 +724,10 @@ public class PianoRollPanel : FrameworkElement
             var (pitchLow, pitchHigh) = GetLanePitchRange(_allNotes);
             var pitchCount = pitchHigh - pitchLow + 1;
             var overlayHeight = ActualHeight > 0 ? ActualHeight : 600;
+            if (lyricsOffset > 0)
+            {
+                overlayHeight = Math.Max(0, overlayHeight - lyricsOffset);
+            }
             if (CompactPitchRange && pitchCount > 0)
             {
                 overlayHeight = Math.Min(overlayHeight, pitchCount * 16.0);
@@ -650,7 +736,7 @@ public class PianoRollPanel : FrameworkElement
             {
                 Id = new LaneId(0, 0),
                 TrackName = "All Tracks (Overlay)",
-                YOffset = 0,
+                YOffset = lyricsOffset,
                 Height = overlayHeight,
                 PitchLow = pitchLow,
                 PitchHigh = pitchHigh,
@@ -666,7 +752,7 @@ public class PianoRollPanel : FrameworkElement
             var notesByLane = NotePairer.GroupByLane(_allNotes);
             var sortedLanes = notesByLane.Keys.OrderBy(l => l.TrackIndex).ThenBy(l => l.Channel).ToList();
 
-            var yOffset = 0.0;
+            var yOffset = lyricsOffset;
 
             foreach (var laneId in sortedLanes)
             {
@@ -838,6 +924,7 @@ public class PianoRollPanel : FrameworkElement
         RenderBackground();
         RenderGrid();
         RenderNotes();
+        RenderLyricsLane();
         RenderPlayhead();
         RenderLaneHeaders();
         RenderTempoDisplay();
@@ -896,6 +983,7 @@ public class PianoRollPanel : FrameworkElement
         var rightTime = leftTime + WindowSeconds;
 
         GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
+        var contentTop = Math.Max(visibleTop, GetLyricsLaneHeight());
 
         // Draw vertical time grid lines (every second for now, adjust based on zoom)
         var gridInterval = CalculateGridInterval(pixelsPerSecond);
@@ -908,7 +996,7 @@ public class PianoRollPanel : FrameworkElement
             var x = PianoRollSettings.LaneHeaderWidth + (t - leftTime) * pixelsPerSecond;
             if (x < PianoRollSettings.LaneHeaderWidth || x > ActualWidth) continue;
 
-            dc.DrawLine(GridPen, new Point(x, visibleTop), new Point(x, visibleBottom));
+            dc.DrawLine(GridPen, new Point(x, contentTop), new Point(x, visibleBottom));
         }
 
         var clipped = TryGetContentClipRect(out var clipRect);
@@ -965,6 +1053,7 @@ public class PianoRollPanel : FrameworkElement
         var rightTime = leftTime + WindowSeconds;
 
         GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
+        visibleTop = Math.Max(visibleTop, GetLyricsLaneHeight());
 
         var clipped = TryGetContentClipRect(out var clipRect);
         if (clipped)
@@ -1042,6 +1131,69 @@ public class PianoRollPanel : FrameworkElement
         var playheadX = PianoRollSettings.LaneHeaderWidth + viewWidth * PianoRollSettings.PlayheadPosition;
 
         dc.DrawLine(PlayheadPen, new Point(playheadX, 0), new Point(playheadX, ActualHeight));
+    }
+
+    private void RenderLyricsLane()
+    {
+        using var dc = _lyricsVisual.RenderOpen();
+
+        var laneHeight = GetLyricsLaneHeight();
+        if (laneHeight <= 0)
+        {
+            return;
+        }
+
+        var rect = new Rect(0, 0, ActualWidth, laneHeight);
+        dc.DrawRectangle(LyricsLaneBrush, null, rect);
+        dc.DrawLine(LyricsSeparatorPen, new Point(0, laneHeight), new Point(ActualWidth, laneHeight));
+
+        if (_lyrics.Count == 0)
+        {
+            return;
+        }
+
+        var viewWidth = ActualWidth - PianoRollSettings.LaneHeaderWidth;
+        if (viewWidth <= 0)
+        {
+            return;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var pixelsPerSecond = viewWidth / WindowSeconds;
+        var leftTime = RenderTime.TotalSeconds - WindowSeconds * PianoRollSettings.PlayheadPosition;
+        var rightTime = leftTime + WindowSeconds;
+        var y = (laneHeight - 16) / 2;
+
+        var clipRect = new Rect(PianoRollSettings.LaneHeaderWidth, 0, viewWidth, laneHeight);
+        dc.PushClip(new RectangleGeometry(clipRect));
+
+        foreach (var lyric in _lyrics)
+        {
+            var timeSec = lyric.Time.TotalSeconds;
+            if (timeSec < leftTime || timeSec > rightTime)
+            {
+                continue;
+            }
+
+            var x = PianoRollSettings.LaneHeaderWidth + (timeSec - leftTime) * pixelsPerSecond;
+            if (x > ActualWidth)
+            {
+                continue;
+            }
+
+            var formatted = new FormattedText(
+                lyric.Text,
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                LyricsTypeface,
+                14,
+                lyric.IsActive ? LyricsTextBrush : LyricsTextDimBrush,
+                dpi);
+
+            dc.DrawText(formatted, new Point(x, y));
+        }
+
+        dc.Pop();
     }
 
     private void RenderLaneHeaders()
@@ -1590,6 +1742,79 @@ public class PianoRollPanel : FrameworkElement
         panel.RenderNotes();
         panel.RenderLaneHeaders();
     }
+
+    private double GetLyricsLaneHeight()
+    {
+        return ShowLyricsLane && _lyrics.Count > 0 ? LyricsLaneHeight : 0.0;
+    }
+
+    private void UpdateLyricsCollection(IReadOnlyList<LyricLineViewModel>? lyrics)
+    {
+        DetachLyricsHandlers();
+        _lyrics = lyrics ?? [];
+        AttachLyricsHandlers();
+        RebuildLanes();
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
+
+    private void AttachLyricsHandlers()
+    {
+        if (_lyrics is INotifyCollectionChanged collection)
+        {
+            _lyricsCollection = collection;
+            _lyricsCollection.CollectionChanged += OnLyricsCollectionChanged;
+        }
+
+        foreach (var line in _lyrics)
+        {
+            line.PropertyChanged += OnLyricLinePropertyChanged;
+        }
+    }
+
+    private void DetachLyricsHandlers()
+    {
+        if (_lyricsCollection != null)
+        {
+            _lyricsCollection.CollectionChanged -= OnLyricsCollectionChanged;
+            _lyricsCollection = null;
+        }
+
+        foreach (var line in _lyrics)
+        {
+            line.PropertyChanged -= OnLyricLinePropertyChanged;
+        }
+    }
+
+    private void OnLyricsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems != null)
+        {
+            foreach (LyricLineViewModel line in e.OldItems)
+            {
+                line.PropertyChanged -= OnLyricLinePropertyChanged;
+            }
+        }
+
+        if (e.NewItems != null)
+        {
+            foreach (LyricLineViewModel line in e.NewItems)
+            {
+                line.PropertyChanged += OnLyricLinePropertyChanged;
+            }
+        }
+
+        InvalidateVisual();
+    }
+
+    private void OnLyricLinePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(LyricLineViewModel.IsActive))
+        {
+            InvalidateVisual();
+        }
+    }
+
 
     private void InvalidateLaneHeaders()
     {
