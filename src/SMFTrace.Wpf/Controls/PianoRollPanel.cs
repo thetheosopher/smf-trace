@@ -50,6 +50,17 @@ public class PianoRollPanel : FrameworkElement
                 OnWindowSecondsChanged,
                 CoerceWindowSeconds));
 
+    public static readonly DependencyProperty PitchRowHeightProperty =
+        DependencyProperty.Register(
+            nameof(PitchRowHeight),
+            typeof(double),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(
+                PianoRollSettings.DefaultPitchRowHeight,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                OnPitchRowHeightChanged,
+                CoercePitchRowHeight));
+
     public static readonly DependencyProperty ShowTempoProperty =
         DependencyProperty.Register(
             nameof(ShowTempo),
@@ -136,6 +147,12 @@ public class PianoRollPanel : FrameworkElement
         set => SetValue(WindowSecondsProperty, value);
     }
 
+    public double PitchRowHeight
+    {
+        get => (double)GetValue(PitchRowHeightProperty);
+        set => SetValue(PitchRowHeightProperty, value);
+    }
+
     public bool ShowTempo
     {
         get => (bool)GetValue(ShowTempoProperty);
@@ -192,6 +209,17 @@ public class PianoRollPanel : FrameworkElement
     private static void OnWindowSecondsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         // Trigger re-render
+    }
+
+    private static void OnPitchRowHeightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel._settings.PitchRowHeight = (double)e.NewValue;
+            panel.RebuildLanes();
+            panel.InvalidateMeasure();
+            panel.InvalidateVisual();
+        }
     }
 
     private static void OnCurrentTimeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -292,6 +320,16 @@ public class PianoRollPanel : FrameworkElement
         var value = (double)baseValue;
         if (value < PianoRollSettings.MinWindowSeconds) return PianoRollSettings.MinWindowSeconds;
         if (value > PianoRollSettings.MaxWindowSeconds) return PianoRollSettings.MaxWindowSeconds;
+        return value;
+    }
+#pragma warning restore CA1859
+
+#pragma warning disable CA1859 // CoerceValueCallback must return object
+    private static object CoercePitchRowHeight(DependencyObject d, object baseValue)
+    {
+        var value = (double)baseValue;
+        if (value < PianoRollSettings.MinPitchRowHeight) return PianoRollSettings.MinPitchRowHeight;
+        if (value > PianoRollSettings.MaxPitchRowHeight) return PianoRollSettings.MaxPitchRowHeight;
         return value;
     }
 #pragma warning restore CA1859
@@ -633,7 +671,7 @@ public class PianoRollPanel : FrameworkElement
             var targetHeight = finalSize.Height - GetLyricsLaneHeight();
             if (CompactPitchRange && lane.PitchCount > 0)
             {
-                targetHeight = Math.Min(targetHeight, lane.PitchCount * 16.0);
+                targetHeight = Math.Min(targetHeight, lane.PitchCount * _settings.PitchRowHeight);
             }
 
             if (targetHeight < 0)
@@ -689,10 +727,40 @@ public class PianoRollPanel : FrameworkElement
         return (min, max);
     }
 
-    private static double CalculateLaneHeight(int pitchCount)
+    private double CalculateLaneHeight(int pitchCount)
     {
-        var height = pitchCount * PianoRollSettings.PitchRowHeight;
+        var height = pitchCount * _settings.PitchRowHeight;
         return height < PianoRollSettings.MinLaneHeight ? PianoRollSettings.MinLaneHeight : height;
+    }
+
+    private static (int Low, int High) EnsureMinOctaveRange(int low, int high)
+    {
+        const int minCount = 13;
+        var count = high - low + 1;
+        if (count >= minCount)
+        {
+            return (low, high);
+        }
+
+        var needed = minCount - count;
+        var padLow = needed / 2;
+        var padHigh = needed - padLow;
+        var newLow = low - padLow;
+        var newHigh = high + padHigh;
+
+        if (newLow < 0)
+        {
+            newHigh = Math.Min(127, newHigh + (-newLow));
+            newLow = 0;
+        }
+
+        if (newHigh > 127)
+        {
+            newLow = Math.Max(0, newLow - (newHigh - 127));
+            newHigh = 127;
+        }
+
+        return (newLow, newHigh);
     }
 
     #endregion
@@ -730,7 +798,7 @@ public class PianoRollPanel : FrameworkElement
             }
             if (CompactPitchRange && pitchCount > 0)
             {
-                overlayHeight = Math.Min(overlayHeight, pitchCount * 16.0);
+                overlayHeight = Math.Min(overlayHeight, pitchCount * _settings.PitchRowHeight);
             }
             var layout = new LaneLayout
             {
@@ -759,6 +827,10 @@ public class PianoRollPanel : FrameworkElement
                 var trackName = laneId.TrackIndex < _tracks.Count ? _tracks[laneId.TrackIndex].Name : null;
                 var laneNotes = notesByLane[laneId];
                 var (pitchLow, pitchHigh) = GetLanePitchRange(laneNotes);
+                if (CompactPitchRange)
+                {
+                    (pitchLow, pitchHigh) = EnsureMinOctaveRange(pitchLow, pitchHigh);
+                }
                 var pitchCount = pitchHigh - pitchLow + 1;
                 var laneHeight = CompactPitchRange
                     ? CalculateLaneHeight(pitchCount)
@@ -1833,7 +1905,7 @@ public class PianoRollPanel : FrameworkElement
 
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
-        // Draw tempo badge in top-right corner
+        // Draw tempo badge to the left of the vertical zoom buttons
         var tempoText = $"{_currentTempo:F1} BPM";
         var formattedText = new FormattedText(
             tempoText,
@@ -1847,7 +1919,10 @@ public class PianoRollPanel : FrameworkElement
         var padding = 8.0;
         var badgeWidth = formattedText.Width + padding * 2;
         var badgeHeight = formattedText.Height + padding;
-        var x = ActualWidth - badgeWidth - 10;
+        var zoomButtonWidth = 20.0;
+        var zoomButtonMargin = 4.0;
+        var zoomButtonGap = 8.0;
+        var x = ActualWidth - badgeWidth - zoomButtonWidth - zoomButtonMargin - zoomButtonGap;
         var y = 10.0;
 
         // Background with slight transparency

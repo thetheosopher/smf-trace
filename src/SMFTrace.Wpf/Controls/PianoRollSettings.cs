@@ -23,8 +23,14 @@ public sealed class PianoRollSettings
     /// <summary>Default pitch range high (MIDI note number).</summary>
     public const int DefaultPitchHigh = 108;  // C8
 
-    /// <summary>Height per pitch row in pixels.</summary>
-    public const double PitchRowHeight = 8.0;
+    /// <summary>Default height per pitch row in pixels.</summary>
+    public const double DefaultPitchRowHeight = 8.0;
+
+    /// <summary>Minimum height per pitch row in pixels.</summary>
+    public const double MinPitchRowHeight = 8.0;
+
+    /// <summary>Maximum height per pitch row in pixels.</summary>
+    public const double MaxPitchRowHeight = 24.0;
 
     /// <summary>Lane header width in pixels.</summary>
     public const double LaneHeaderWidth = 200.0;
@@ -40,6 +46,9 @@ public sealed class PianoRollSettings
 
     /// <summary>Visible time window in seconds.</summary>
     public double WindowSeconds { get; set; } = DefaultWindowSeconds;
+
+    /// <summary>Height per pitch row in pixels.</summary>
+    public double PitchRowHeight { get; set; } = DefaultPitchRowHeight;
 
     /// <summary>Low pitch of visible range (MIDI note).</summary>
     public int PitchLow { get; set; } = DefaultPitchLow;

@@ -1,4 +1,4 @@
-﻿<Window x:Class="SMFTrace.Wpf.MainWindow"
+<Window x:Class="SMFTrace.Wpf.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -57,6 +57,14 @@
             <Setter Property="Margin" Value="1"/>
             <Setter Property="MinWidth" Value="32"/>
             <Setter Property="MinHeight" Value="28"/>
+        </Style>
+
+        <Style TargetType="Button" x:Key="MiniZoomButtonStyle" BasedOn="{StaticResource ToolbarButtonStyle}">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="MinWidth" Value="20"/>
+            <Setter Property="MinHeight" Value="20"/>
+            <Setter Property="FontSize" Value="12"/>
         </Style>
 
         <Style TargetType="ToggleButton" x:Key="IconToggleButtonStyle">
@@ -393,11 +401,25 @@
                     ToolTip="Playback speed (0.05x - 4x)"/>
                 <TextBlock Text="{Binding PlaybackRate, StringFormat={}{0:0.00}x}" VerticalAlignment="Center" Foreground="White" Margin="6,0" MinWidth="44"/>
                 <Separator/>
-                <TextBlock Text="Zoom:" VerticalAlignment="Center" Foreground="White" Margin="4,0"/>
-                <Button Content="+" Command="{Binding ZoomInCommand}" Width="30" Style="{StaticResource ToolbarButtonStyle}" MinWidth="30"/>
-                <Button Content="-" Command="{Binding ZoomOutCommand}" Width="30" Style="{StaticResource ToolbarButtonStyle}" MinWidth="30"/>
             </ToolBar>
         </ToolBarTray>
+
+        <StackPanel Grid.Row="0"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                Margin="0,0,10,0"
+                Panel.ZIndex="5">
+            <Button Content="-"
+                Command="{Binding ZoomOutCommand}"
+                Style="{StaticResource MiniZoomButtonStyle}"
+                ToolTip="Zoom out"/>
+                <Button Content="+"
+                    Command="{Binding ZoomInCommand}"
+                    Style="{StaticResource MiniZoomButtonStyle}"
+                    Margin="4,0,0,0"
+                    ToolTip="Zoom in"/>
+        </StackPanel>
 
         <!-- Main Content -->
         <TabControl x:Name="MainTabs"
@@ -453,22 +475,40 @@
                         </DockPanel>
                     </Border>
 
-                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <controls:PianoRollPanel x:Name="PianoRoll"
-                                                 CurrentTime="{Binding CurrentTime}"
-                                                 TotalDuration="{Binding TotalDuration}"
-                                                 WindowSeconds="{Binding WindowSeconds, Mode=TwoWay}"
-                                                 MidiFormat="{Binding MidiFormat}"
-                                                 ShowTempo="{Binding ShowTempo}"
-                                                 ShowBarsBeatsGrid="{Binding ShowBarsBeatsGrid}"
-                                                 ShowNoteNames="{Binding ShowNoteNames}"
-                                                 ShowPianoKeys="{Binding ShowPianoKeys}"
-                                                 CompactPitchRange="{Binding CompactPitchRange}"
-                                                 OverlayMode="{Binding OverlayMode}"
-                                                 IsPlaying="{Binding IsPlaying}"
-                                                 ShowLyricsLane="{Binding ShowLyricsLane}"
-                                                 Lyrics="{Binding Lyrics}"/>
-                    </ScrollViewer>
+                    <Grid Grid.Column="1">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <controls:PianoRollPanel x:Name="PianoRoll"
+                                                     CurrentTime="{Binding CurrentTime}"
+                                                     TotalDuration="{Binding TotalDuration}"
+                                                     WindowSeconds="{Binding WindowSeconds, Mode=TwoWay}"
+                                                     PitchRowHeight="{Binding PitchRowHeight}"
+                                                     MidiFormat="{Binding MidiFormat}"
+                                                     ShowTempo="{Binding ShowTempo}"
+                                                     ShowBarsBeatsGrid="{Binding ShowBarsBeatsGrid}"
+                                                     ShowNoteNames="{Binding ShowNoteNames}"
+                                                     ShowPianoKeys="{Binding ShowPianoKeys}"
+                                                     CompactPitchRange="{Binding CompactPitchRange}"
+                                                     OverlayMode="{Binding OverlayMode}"
+                                                     IsPlaying="{Binding IsPlaying}"
+                                                     ShowLyricsLane="{Binding ShowLyricsLane}"
+                                                     Lyrics="{Binding Lyrics}"/>
+                        </ScrollViewer>
+                        <StackPanel Orientation="Vertical"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top"
+                                    Margin="0,4,4,0"
+                                    Panel.ZIndex="5">
+                            <Button Content="-"
+                                    Command="{Binding VerticalZoomOutCommand}"
+                                    Style="{StaticResource MiniZoomButtonStyle}"
+                                    ToolTip="Decrease lane height"/>
+                                <Button Content="+"
+                                    Command="{Binding VerticalZoomInCommand}"
+                                    Style="{StaticResource MiniZoomButtonStyle}"
+                                    ToolTip="Increase lane height"
+                                    Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
             </TabItem>
             <TabItem Header="Playlist">

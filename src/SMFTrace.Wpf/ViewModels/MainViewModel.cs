@@ -36,6 +36,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showBarsBeatsGrid = true;
     private bool _showTrackControls;
     private bool _showLyricsLane;
+    private double _pitchRowHeight = 8.0;
     private bool _loopPlayback;
     private double _playbackRate = 1.0;
     private int _defaultInstrumentProgram;
@@ -67,6 +68,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _hasLyrics;
     private int _currentLyricIndex = -1;
     private volatile bool _disposed;
+
+    private const double MinPitchRowHeight = 8.0;
+    private const double MaxPitchRowHeight = 24.0;
+    private const double PitchRowHeightStep = 2.0;
 
     /// <summary>Diagnostics tab view model.</summary>
     public DiagnosticsViewModel Diagnostics { get; } = new();
@@ -113,6 +118,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         NextCommand = new RelayCommand(PlayNext, () => CanNavigatePlaylist);
         ZoomInCommand = new RelayCommand(ZoomIn);
         ZoomOutCommand = new RelayCommand(ZoomOut);
+        VerticalZoomInCommand = new RelayCommand(VerticalZoomIn);
+        VerticalZoomOutCommand = new RelayCommand(VerticalZoomOut);
         AddFilesCommand = new RelayCommand(AddFiles);
 
         // Start device enumeration
@@ -244,6 +251,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _showBarsBeatsGrid;
         set => SetField(ref _showBarsBeatsGrid, value);
+    }
+
+    public double PitchRowHeight
+    {
+        get => _pitchRowHeight;
+        set
+        {
+            var clamped = Math.Clamp(value, MinPitchRowHeight, MaxPitchRowHeight);
+            SetField(ref _pitchRowHeight, clamped);
+        }
     }
 
     public bool ShowLyricsLane
@@ -455,6 +472,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand NextCommand { get; }
     public ICommand ZoomInCommand { get; }
     public ICommand ZoomOutCommand { get; }
+    public ICommand VerticalZoomInCommand { get; }
+    public ICommand VerticalZoomOutCommand { get; }
     public ICommand AddFilesCommand { get; }
 
     #endregion
@@ -832,7 +851,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 DecrementPlaylistParsing();
             }
-        }, token);
+        }, CancellationToken.None);
     }
 
     private void IncrementPlaylistParsing()
@@ -1056,6 +1075,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private void ZoomOut()
     {
         WindowSeconds = Math.Min(WindowSeconds * 1.25, 300.0);
+    }
+
+    private void VerticalZoomIn()
+    {
+        PitchRowHeight = PitchRowHeight + PitchRowHeightStep;
+    }
+
+    private void VerticalZoomOut()
+    {
+        PitchRowHeight = PitchRowHeight - PitchRowHeightStep;
     }
 
     /// <summary>
