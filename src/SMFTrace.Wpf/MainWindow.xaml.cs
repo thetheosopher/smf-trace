@@ -37,8 +37,8 @@ public partial class MainWindow : Window
         StateChanged += OnStateChanged;
         SizeChanged += OnSizeChanged;
         LocationChanged += OnLocationChanged;
-        PreviewKeyDown += OnPreviewKeyDown;
-        PreviewMouseWheel += OnPreviewMouseWheel;
+        AddHandler(Keyboard.PreviewKeyDownEvent, new KeyEventHandler(OnPreviewKeyDown), true);
+        AddHandler(Mouse.PreviewMouseWheelEvent, new MouseWheelEventHandler(OnPreviewMouseWheel), true);
         DragOver += OnDragOver;
         Drop += OnDrop;
     }
@@ -175,6 +175,27 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.P && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            _viewModel.PanicCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.O && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            {
+                _viewModel.AddFilesCommand.Execute(null);
+            }
+            else
+            {
+                _viewModel.OpenCommand.Execute(null);
+            }
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Space)
         {
             // Toggle play/pause with spacebar
@@ -186,6 +207,34 @@ public partial class MainWindow : Window
             {
                 _viewModel.PlayCommand.Execute(null);
             }
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.S)
+        {
+            _viewModel.StopCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Left)
+        {
+            _viewModel.PreviousCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Right)
+        {
+            _viewModel.NextCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.L)
+        {
+            _viewModel.LoopPlayback = !_viewModel.LoopPlayback;
             e.Handled = true;
             return;
         }

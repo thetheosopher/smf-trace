@@ -385,6 +385,8 @@ public class PianoRollPanel : FrameworkElement
     private IReadOnlyList<TrackPlaybackViewModel> _trackPlaybackStates = Array.Empty<TrackPlaybackViewModel>();
     private bool _hasSoloTracks;
     private readonly HashSet<int> _soloTrackIndices = [];
+    private bool _hasMutedTracks;
+    private readonly HashSet<int> _mutedTrackIndices = [];
 
     // Smooth scrolling fields
     private readonly Stopwatch _smoothScrollStopwatch = new();
@@ -554,7 +556,7 @@ public class PianoRollPanel : FrameworkElement
             state.PropertyChanged += OnTrackPlaybackPropertyChanged;
         }
 
-        UpdateSoloState();
+        UpdateTrackPlaybackState();
         InvalidateVisual();
     }
 
@@ -576,31 +578,39 @@ public class PianoRollPanel : FrameworkElement
             }
         }
 
-        UpdateSoloState();
+        UpdateTrackPlaybackState();
         InvalidateVisual();
     }
 
     private void OnTrackPlaybackPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(TrackPlaybackViewModel.IsSolo))
+        if (e.PropertyName == nameof(TrackPlaybackViewModel.IsSolo) ||
+            e.PropertyName == nameof(TrackPlaybackViewModel.IsMuted))
         {
-            UpdateSoloState();
+            UpdateTrackPlaybackState();
             InvalidateVisual();
         }
     }
 
-    private void UpdateSoloState()
+    private void UpdateTrackPlaybackState()
     {
         _soloTrackIndices.Clear();
+        _mutedTrackIndices.Clear();
         foreach (var state in _trackPlaybackStates)
         {
             if (state.IsSolo)
             {
                 _soloTrackIndices.Add(state.TrackIndex);
             }
+
+            if (state.IsMuted)
+            {
+                _mutedTrackIndices.Add(state.TrackIndex);
+            }
         }
 
         _hasSoloTracks = _soloTrackIndices.Count > 0;
+        _hasMutedTracks = _mutedTrackIndices.Count > 0;
     }
 
     private void EnsureScrollViewer()
@@ -748,9 +758,22 @@ public class PianoRollPanel : FrameworkElement
         // In overlay mode, use available height
         if (OverlayMode)
         {
+            var pitchCount = 0;
+            if (_allNotes.Count > 0)
+            {
+                var (pitchLow, pitchHigh) = GetLanePitchRange(_allNotes);
+                pitchCount = pitchHigh - pitchLow + 1;
+            }
+
+            if (pitchCount <= 0)
+            {
+                pitchCount = _settings.PitchHigh - _settings.PitchLow + 1;
+            }
+
+            var desiredHeight = pitchCount * _settings.PitchRowHeight + GetLyricsLaneHeight();
             return new Size(
                 double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width,
-                double.IsInfinity(availableSize.Height) ? 600 : availableSize.Height);
+                Math.Max(double.IsInfinity(availableSize.Height) ? 600 : availableSize.Height, desiredHeight));
         }
 
         // Calculate total height needed for all lanes
@@ -773,9 +796,9 @@ public class PianoRollPanel : FrameworkElement
         {
             var lane = _lanes[0];
             var targetHeight = finalSize.Height - GetLyricsLaneHeight();
-            if (CompactPitchRange && lane.PitchCount > 0)
+            if (lane.PitchCount > 0)
             {
-                targetHeight = Math.Min(targetHeight, lane.PitchCount * _settings.PitchRowHeight);
+                targetHeight = Math.Max(targetHeight, lane.PitchCount * _settings.PitchRowHeight);
             }
 
             if (targetHeight < 0)
@@ -900,9 +923,9 @@ public class PianoRollPanel : FrameworkElement
             {
                 overlayHeight = Math.Max(0, overlayHeight - lyricsOffset);
             }
-            if (CompactPitchRange && pitchCount > 0)
+            if (pitchCount > 0)
             {
-                overlayHeight = Math.Min(overlayHeight, pitchCount * _settings.PitchRowHeight);
+                overlayHeight = Math.Max(overlayHeight, pitchCount * _settings.PitchRowHeight);
             }
             var layout = new LaneLayout
             {
@@ -1295,7 +1318,13 @@ public class PianoRollPanel : FrameworkElement
                 ? TrackColorMapper.GetBrush(GetOverlayColorTrackIndex(note.TrackIndex), note.Velocity)
                 : VelocityColorMapper.GetBrush(note.Velocity);
 
-            if (_hasSoloTracks && !_soloTrackIndices.Contains(note.TrackIndex))
+            if (_hasMutedTracks && _mutedTrackIndices.Contains(note.TrackIndex))
+            {
+                dc.PushOpacity(0.2);
+                dc.DrawRectangle(brush, null, rect);
+                dc.Pop();
+            }
+            else if (_hasSoloTracks && !_soloTrackIndices.Contains(note.TrackIndex))
             {
                 dc.PushOpacity(0.35);
                 dc.DrawRectangle(brush, null, rect);

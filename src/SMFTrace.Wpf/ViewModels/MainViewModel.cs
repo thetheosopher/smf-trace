@@ -932,7 +932,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 if (!token.IsCancellationRequested)
                 {
-                    ApplyMetadataFailed(entry);
+                    RemoveInvalidPlaylistEntry(entry);
                 }
             }
             finally
@@ -940,6 +940,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 DecrementPlaylistParsing();
             }
         }, CancellationToken.None);
+    }
+
+    private void RemoveInvalidPlaylistEntry(PlaylistEntry entry)
+    {
+        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        {
+            PlaylistEntries.Remove(entry);
+        });
     }
 
     private void IncrementPlaylistParsing()
