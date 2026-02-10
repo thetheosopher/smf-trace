@@ -67,6 +67,66 @@
             <Setter Property="FontSize" Value="12"/>
         </Style>
 
+        <Style TargetType="Slider" x:Key="TempoAdjustmentSliderStyle">
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Height="20">
+                            <Track x:Name="PART_Track" Focusable="False">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Style="{x:Null}"
+                                                  IsHitTestVisible="False"
+                                                  Background="#3A3A40"
+                                                  Height="4"
+                                                  VerticalAlignment="Center">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="{TemplateBinding Background}" CornerRadius="2"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Style="{x:Null}"
+                                                  IsHitTestVisible="False"
+                                                  Background="#3A3A40"
+                                                  Height="4"
+                                                  VerticalAlignment="Center">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="{TemplateBinding Background}" CornerRadius="2"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="16" Height="16">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Grid Width="16" Height="16">
+                                                    <Ellipse Stroke="#1D4FA6" StrokeThickness="1">
+                                                        <Ellipse.Fill>
+                                                            <RadialGradientBrush Center="0.35,0.35" GradientOrigin="0.35,0.35" RadiusX="0.9" RadiusY="0.9">
+                                                                <GradientStop Color="#D6E6FF" Offset="0"/>
+                                                                <GradientStop Color="#4C92FF" Offset="0.55"/>
+                                                                <GradientStop Color="#1D5FE0" Offset="1"/>
+                                                            </RadialGradientBrush>
+                                                        </Ellipse.Fill>
+                                                    </Ellipse>
+                                                    <Ellipse Width="4" Height="4" Fill="#F6FBFF" Opacity="0.9" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="3"/>
+                                                </Grid>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="ToggleButton" x:Key="IconToggleButtonStyle">
             <Setter Property="Padding" Value="6,3"/>
             <Setter Property="Margin" Value="1"/>
@@ -373,33 +433,35 @@
                      Band="0"
                      BandIndex="1"
                      DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                <ToggleButton Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Compact lane pitch range to used notes"/>
+                <ToggleButton Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Overlay all tracks with distinct colors"/>
                 <ToggleButton Content="M/S" IsChecked="{Binding ShowTrackControls}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show track mute/solo"/>
+                <ToggleButton Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource IconToggleButtonStyle}"/>
+                <ToggleButton Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show note names in lane headers"/>
+                <ToggleButton Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show piano keys in lane headers"/>
                 <ToggleButton Content="Lyrics"
                               IsChecked="{Binding ShowLyricsLane}"
                               Style="{StaticResource IconToggleButtonStyle}"
                               ToolTip="Show lyrics lane"
                               Visibility="{Binding HasLyrics, Converter={StaticResource BoolToVisibility}}"/>
                 <ToggleButton Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource IconToggleButtonStyle}"/>
-                <ToggleButton Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource IconToggleButtonStyle}"/>
-                <ToggleButton Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show note names in lane headers"/>
-                <ToggleButton Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show piano keys in lane headers"/>
-                <ToggleButton Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Compact lane pitch range to used notes"/>
-                <ToggleButton Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Overlay all tracks with distinct colors"/>
                 <Separator/>
-                <TextBlock Text="Speed" VerticalAlignment="Center" Foreground="White" Margin="6,0,4,0"/>
-                <Slider Minimum="0.05"
-                    Maximum="4"
-                    Value="{Binding PlaybackRate, Mode=TwoWay}"
-                    Width="120"
-                    TickFrequency="0.05"
+                <TextBlock Text="Tempo" VerticalAlignment="Center" Foreground="White" Margin="6,0,4,0"/>
+                <Slider Minimum="{Binding MinTempoAdjustmentBpm}"
+                    Maximum="{Binding MaxTempoAdjustmentBpm}"
+                    Value="{Binding TempoAdjustmentBpm, Mode=TwoWay}"
+                    Width="140"
+                    TickFrequency="1"
                     IsSnapToTickEnabled="True"
-                    SmallChange="0.05"
-                    LargeChange="0.25"
+                    SmallChange="1"
+                    LargeChange="5"
                     AutoToolTipPlacement="TopLeft"
-                    AutoToolTipPrecision="2"
+                    AutoToolTipPrecision="0"
                     VerticalAlignment="Center"
-                    ToolTip="Playback speed (0.05x - 4x)"/>
-                <TextBlock Text="{Binding PlaybackRate, StringFormat={}{0:0.00}x}" VerticalAlignment="Center" Foreground="White" Margin="6,0" MinWidth="44"/>
+                    Style="{StaticResource TempoAdjustmentSliderStyle}"
+                    ToolTip="Tempo adjustment (+/- BPM)"
+                    PreviewMouseLeftButtonDown="TempoAdjustmentSlider_PreviewMouseLeftButtonDown"/>
+                <TextBlock Text="{Binding TempoAdjustmentLabel}" VerticalAlignment="Center" Foreground="White" Margin="6,0" MinWidth="70"/>
                 <Separator/>
             </ToolBar>
         </ToolBarTray>

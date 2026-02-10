@@ -38,7 +38,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showLyricsLane;
     private double _pitchRowHeight = 8.0;
     private bool _loopPlayback;
-    private double _playbackRate = 1.0;
+    private double _tempoAdjustmentBpm;
     private int _defaultInstrumentProgram;
     private bool _fileHasProgramChanges;
     private byte[] _fileUsedChannels = [];
@@ -54,6 +54,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private ChannelState[] _channelStates = new ChannelState[16];
     private double _currentTempo = 120.0;
     private double _effectiveTempo = 120.0;
+    private double _minTempoLimit = 10.0;
+    private double _maxTempoLimit = 480.0;
+    private double _minTempoAdjustmentBpm = -110.0;
+    private double _maxTempoAdjustmentBpm = 360.0;
     private bool _isSeeking;
     private bool _forceStopPosition;
     private bool _userStopRequested;
@@ -136,7 +140,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _showTempo = s.ShowTempo;
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
         _loopPlayback = s.LoopPlayback;
-        _playbackRate = Math.Clamp(s.PlaybackRate, 0.05, 4.0);
+        _tempoAdjustmentBpm = s.TempoAdjustmentBpm;
         _defaultInstrumentProgram = Math.Clamp(s.DefaultInstrumentProgram, 0, 127);
         _showNoteNames = s.ShowNoteNames;
         _showPianoKeys = s.ShowPianoKeys;
@@ -153,8 +157,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             instrument => instrument.Program == _defaultInstrumentProgram)
             ?? DefaultInstruments.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedDefaultInstrument));
-        OnPropertyChanged(nameof(PlaybackRate));
-        OnPropertyChanged(nameof(PlaybackRateLabel));
+        UpdateTempoLimitsFromFile();
+        OnPropertyChanged(nameof(TempoAdjustmentBpm));
+        OnPropertyChanged(nameof(TempoAdjustmentLabel));
         UpdateEffectiveTempo();
     }
 
@@ -168,7 +173,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.ShowTempo = ShowTempo;
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
         s.LoopPlayback = LoopPlayback;
-        s.PlaybackRate = PlaybackRate;
+        s.TempoAdjustmentBpm = TempoAdjustmentBpm;
         s.DefaultInstrumentProgram = _defaultInstrumentProgram;
         s.ShowNoteNames = ShowNoteNames;
         s.ShowPianoKeys = ShowPianoKeys;
@@ -281,27 +286,52 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public double PlaybackRate
+    public double TempoAdjustmentBpm
     {
-        get => _playbackRate;
+        get => _tempoAdjustmentBpm;
         set
         {
-            var clamped = Math.Clamp(value, 0.05, 4.0);
-            var rounded = Math.Round(clamped / 0.05, 0, MidpointRounding.AwayFromZero) * 0.05;
-            if (SetField(ref _playbackRate, rounded))
+            var clamped = Math.Clamp(value, MinTempoAdjustmentBpm, MaxTempoAdjustmentBpm);
+            var rounded = Math.Round(clamped, 0, MidpointRounding.AwayFromZero);
+            if (SetField(ref _tempoAdjustmentBpm, rounded))
             {
                 if (_engine != null)
                 {
-                    _engine.TempoMultiplier = rounded;
+                    _engine.TempoAdjustmentBpm = rounded;
                 }
 
-                OnPropertyChanged(nameof(PlaybackRateLabel));
+                OnPropertyChanged(nameof(TempoAdjustmentLabel));
                 UpdateEffectiveTempo();
             }
         }
     }
 
-    public string PlaybackRateLabel => $"{PlaybackRate:0.00}x";
+    public double MinTempoAdjustmentBpm
+    {
+        get => _minTempoAdjustmentBpm;
+        private set => SetField(ref _minTempoAdjustmentBpm, value);
+    }
+
+    public double MaxTempoAdjustmentBpm
+    {
+        get => _maxTempoAdjustmentBpm;
+        private set => SetField(ref _maxTempoAdjustmentBpm, value);
+    }
+
+    public string TempoAdjustmentLabel
+    {
+        get
+        {
+            var rounded = Math.Round(TempoAdjustmentBpm, 0, MidpointRounding.AwayFromZero);
+            if (Math.Abs(rounded) < 0.5)
+            {
+                return "0 BPM";
+            }
+
+            var sign = rounded > 0 ? "+" : string.Empty;
+            return $"{sign}{rounded:0} BPM";
+        }
+    }
 
     public bool ShowNoteNames
     {
@@ -420,6 +450,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             if (SetField(ref _currentTempo, value))
             {
+                UpdateTempoAdjustmentRange();
                 UpdateEffectiveTempo();
             }
         }
@@ -433,7 +464,62 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void UpdateEffectiveTempo()
     {
-        EffectiveTempo = _currentTempo * _playbackRate;
+        var minTempo = _minTempoLimit;
+        var maxTempo = _maxTempoLimit;
+        var targetTempo = _currentTempo + _tempoAdjustmentBpm;
+        EffectiveTempo = Math.Clamp(targetTempo, minTempo, maxTempo);
+    }
+
+    private void UpdateTempoLimitsFromFile()
+    {
+        if (_fileData == null)
+        {
+            _minTempoLimit = 10.0;
+            _maxTempoLimit = 480.0;
+        }
+        else
+        {
+            var (min, max) = GetTempoRange(_fileData);
+            _minTempoLimit = Math.Min(10.0, min);
+            _maxTempoLimit = Math.Max(480.0, max);
+        }
+
+        UpdateTempoAdjustmentRange();
+    }
+
+    private void UpdateTempoAdjustmentRange()
+    {
+        var minAdjustment = _minTempoLimit - _currentTempo;
+        var maxAdjustment = _maxTempoLimit - _currentTempo;
+
+        MinTempoAdjustmentBpm = minAdjustment;
+        MaxTempoAdjustmentBpm = maxAdjustment;
+
+        var clamped = Math.Clamp(_tempoAdjustmentBpm, minAdjustment, maxAdjustment);
+        if (Math.Abs(clamped - _tempoAdjustmentBpm) > 0.001)
+        {
+            TempoAdjustmentBpm = clamped;
+        }
+        else
+        {
+            OnPropertyChanged(nameof(TempoAdjustmentLabel));
+        }
+    }
+
+    private static (double Min, double Max) GetTempoRange(MidiFileData data)
+    {
+        var tempos = data.Events
+            .OfType<MetaEvent>()
+            .Where(evt => evt.IsSetTempo)
+            .Select(evt => evt.Bpm)
+            .ToList();
+
+        if (tempos.Count == 0)
+        {
+            return (120.0, 120.0);
+        }
+
+        return (tempos.Min(), tempos.Max());
     }
 
     public IReadOnlyList<MidiEventBase> Events => _fileData?.Events ?? [];
@@ -548,7 +634,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _engine = new SequencerEngine(_fileData, new SMFTrace.Core.Configuration.PlaybackOptions
             {
                 LoopPlayback = LoopPlayback,
-                TempoMultiplier = PlaybackRate
+                TempoAdjustmentBpm = TempoAdjustmentBpm
             });
             _engine.PositionChanged += OnPositionChanged;
             _engine.StateChanged += OnStateChanged;
@@ -561,7 +647,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             IsFileLoaded = true;
             PlaybackState = PlaybackState.Stopped;
             WindowTitle = $"SMF Trace - {Path.GetFileName(filePath)}";
-            OnPropertyChanged(nameof(PlaybackRateLabel));
+            OnPropertyChanged(nameof(TempoAdjustmentLabel));
 
             // Initialize channel states
             _channelStates = loadResult.InitialChannelStates;
@@ -571,6 +657,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             LoadLyricsFromEvents(_fileData.Events);
 
             // Initialize tempo from start of file
+            UpdateTempoLimitsFromFile();
             if (_fileData.TempoMap != null)
             {
                 var tempo = _fileData.TempoMap.GetTempoAtTime(new Melanchall.DryWetMidi.Interaction.MidiTimeSpan(0));

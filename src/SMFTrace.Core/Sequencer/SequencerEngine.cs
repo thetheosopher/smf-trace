@@ -26,7 +26,7 @@ public sealed class SequencerEngine : IDisposable
     private readonly StateSnapshotBuilder _snapshotBuilder;
     private readonly PlaybackOptions _options;
     private readonly object _lock = new();
-    private double _tempoMultiplier = 1.0;
+    private double _tempoAdjustmentBpm;
     private readonly bool[,] _activeNotes = new bool[16, 128];
     private volatile bool _disposing;
     private bool[] _trackActivityMask;
@@ -73,7 +73,7 @@ public sealed class SequencerEngine : IDisposable
         _fileData = fileData ?? throw new ArgumentNullException(nameof(fileData));
         _options = options ?? new PlaybackOptions();
         _snapshotBuilder = new StateSnapshotBuilder(fileData.Events);
-        _tempoMultiplier = Math.Clamp(_options.TempoMultiplier, 0.05, 4.0);
+        _tempoAdjustmentBpm = _options.TempoAdjustmentBpm;
         _trackActivityMask = CreateDefaultTrackMask(fileData.Tracks.Count);
     }
 
@@ -104,15 +104,14 @@ public sealed class SequencerEngine : IDisposable
         set { lock (_lock) _options.LoopPlayback = value; }
     }
 
-    public double TempoMultiplier
+    public double TempoAdjustmentBpm
     {
-        get { lock (_lock) return _tempoMultiplier; }
+        get { lock (_lock) return _tempoAdjustmentBpm; }
         set
         {
-            var clamped = Math.Clamp(value, 0.05, 4.0);
             lock (_lock)
             {
-                _tempoMultiplier = clamped;
+                _tempoAdjustmentBpm = value;
             }
         }
     }
@@ -422,7 +421,7 @@ public sealed class SequencerEngine : IDisposable
         var lastSpeed = 1.0;
         lock (_lock)
         {
-            lastSpeed = _tempoMultiplier;
+            lastSpeed = GetTempoAdjustedSpeed(_currentTick, _tempoAdjustmentBpm);
         }
         _lastPositionUpdate = TimeSpan.Zero;
 
@@ -470,7 +469,8 @@ public sealed class SequencerEngine : IDisposable
                 eventIndex = _currentEventIndex;
 
                 var elapsed = stopwatch.Elapsed;
-                _currentTime = GetScaledTime(ref startTime, elapsed, ref lastSpeed, _tempoMultiplier);
+                var speed = GetTempoAdjustedSpeed(_currentTick, _tempoAdjustmentBpm);
+                _currentTime = GetScaledTime(ref startTime, elapsed, ref lastSpeed, speed);
                 _currentTick = TimeToTick(_currentTime);
             }
 
@@ -481,9 +481,9 @@ public sealed class SequencerEngine : IDisposable
                 // Use spin-wait for sub-millisecond precision, but also update position periodically
                 while (timeUntilEvent > TimeSpan.Zero && !token.IsCancellationRequested)
                 {
-                    var speed = lastSpeed;
-                    var realTimeUntilEvent = speed > 0.0001
-                        ? TimeSpan.FromTicks((long)(timeUntilEvent.Ticks / speed))
+                    var speedForWait = lastSpeed;
+                    var realTimeUntilEvent = speedForWait > 0.0001
+                        ? TimeSpan.FromTicks((long)(timeUntilEvent.Ticks / speedForWait))
                         : timeUntilEvent;
 
                     // Sleep for a short time, but wake up for position updates
@@ -501,7 +501,8 @@ public sealed class SequencerEngine : IDisposable
                     lock (_lock)
                     {
                         var elapsed = stopwatch.Elapsed;
-                        _currentTime = GetScaledTime(ref startTime, elapsed, ref lastSpeed, _tempoMultiplier);
+                        var speedForUpdate = GetTempoAdjustedSpeed(_currentTick, _tempoAdjustmentBpm);
+                        _currentTime = GetScaledTime(ref startTime, elapsed, ref lastSpeed, speedForUpdate);
                         _currentTick = TimeToTick(_currentTime);
                     }
 
@@ -556,6 +557,36 @@ public sealed class SequencerEngine : IDisposable
     {
         var ticks = (long)(elapsed.Ticks * speed);
         return ticks <= 0 ? TimeSpan.Zero : TimeSpan.FromTicks(ticks);
+    }
+
+    private double GetTempoAdjustedSpeed(long tick, double tempoAdjustmentBpm)
+    {
+        var baseTempo = GetTempoAtTick(tick);
+        if (baseTempo <= 0.0001)
+        {
+            return 1.0;
+        }
+
+        var targetTempo = baseTempo + tempoAdjustmentBpm;
+        if (targetTempo <= 1.0)
+        {
+            targetTempo = 1.0;
+        }
+
+        var speed = targetTempo / baseTempo;
+        return speed < 0.01 ? 0.01 : speed;
+    }
+
+    private double GetTempoAtTick(long tick)
+    {
+        var tempoMap = _fileData.TempoMap;
+        if (tempoMap == null)
+        {
+            return 120.0;
+        }
+
+        var tempo = tempoMap.GetTempoAtTime(new MidiTimeSpan(tick));
+        return tempo.BeatsPerMinute;
     }
 
     private void ResetForLoop(Stopwatch stopwatch)

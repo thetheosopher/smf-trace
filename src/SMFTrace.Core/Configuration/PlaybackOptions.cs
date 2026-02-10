@@ -21,7 +21,7 @@ public sealed class PlaybackOptions
     public bool LoopPlayback { get; set; }
 
     /// <summary>
-    /// Playback speed multiplier (0.05x - 4x).
+    /// Tempo adjustment in BPM applied on top of the file tempo map.
     /// </summary>
-    public double TempoMultiplier { get; set; } = 1.0;
+    public double TempoAdjustmentBpm { get; set; }
 }

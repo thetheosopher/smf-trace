@@ -123,7 +123,7 @@ public partial class MainWindow : Window
 
             case nameof(MainViewModel.CurrentTempo):
             case nameof(MainViewModel.EffectiveTempo):
-            case nameof(MainViewModel.PlaybackRate):
+            case nameof(MainViewModel.TempoAdjustmentBpm):
                 // Update tempo display
                 PianoRoll.UpdateTempo(_viewModel.EffectiveTempo);
                 break;
@@ -163,6 +163,15 @@ public partial class MainWindow : Window
         _viewModel.EndSeek();
     }
 
+    private void TempoAdjustmentSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            _viewModel.TempoAdjustmentBpm = 0;
+            e.Handled = true;
+        }
+    }
+
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Space)
@@ -182,14 +191,28 @@ public partial class MainWindow : Window
 
         if (e.Key == Key.OemPlus || e.Key == Key.Add)
         {
-            _viewModel.ZoomInCommand.Execute(null);
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            {
+                _viewModel.VerticalZoomInCommand.Execute(null);
+            }
+            else
+            {
+                _viewModel.ZoomInCommand.Execute(null);
+            }
             e.Handled = true;
             return;
         }
 
         if (e.Key == Key.OemMinus || e.Key == Key.Subtract)
         {
-            _viewModel.ZoomOutCommand.Execute(null);
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            {
+                _viewModel.VerticalZoomOutCommand.Execute(null);
+            }
+            else
+            {
+                _viewModel.ZoomOutCommand.Execute(null);
+            }
             e.Handled = true;
             return;
         }
