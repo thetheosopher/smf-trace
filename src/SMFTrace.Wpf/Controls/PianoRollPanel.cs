@@ -66,14 +66,28 @@ public class PianoRollPanel : FrameworkElement
             nameof(ShowTempo),
             typeof(bool),
             typeof(PianoRollPanel),
-            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender, OnShowTempoChanged));
+
+    public static readonly DependencyProperty RenderTempoBadgeProperty =
+        DependencyProperty.Register(
+            nameof(RenderTempoBadge),
+            typeof(bool),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender, OnRenderTempoBadgeChanged));
 
     public static readonly DependencyProperty ShowBarsBeatsGridProperty =
         DependencyProperty.Register(
             nameof(ShowBarsBeatsGrid),
             typeof(bool),
             typeof(PianoRollPanel),
-            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender, OnShowBarsBeatsGridChanged));
+
+    public static readonly DependencyProperty TempoBadgeRightInsetProperty =
+        DependencyProperty.Register(
+            nameof(TempoBadgeRightInset),
+            typeof(double),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender, OnTempoBadgeRightInsetChanged));
 
     public static readonly DependencyProperty ShowLyricsLaneProperty =
         DependencyProperty.Register(
@@ -166,10 +180,22 @@ public class PianoRollPanel : FrameworkElement
         set => SetValue(ShowTempoProperty, value);
     }
 
+    public bool RenderTempoBadge
+    {
+        get => (bool)GetValue(RenderTempoBadgeProperty);
+        set => SetValue(RenderTempoBadgeProperty, value);
+    }
+
     public bool ShowBarsBeatsGrid
     {
         get => (bool)GetValue(ShowBarsBeatsGridProperty);
         set => SetValue(ShowBarsBeatsGridProperty, value);
+    }
+
+    public double TempoBadgeRightInset
+    {
+        get => (double)GetValue(TempoBadgeRightInsetProperty);
+        set => SetValue(TempoBadgeRightInsetProperty, value);
     }
 
     public bool ShowLyricsLane
@@ -221,7 +247,13 @@ public class PianoRollPanel : FrameworkElement
 
     private static void OnWindowSecondsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        // Trigger re-render
+        if (d is PianoRollPanel panel)
+        {
+            panel._gridDirty = true;
+            panel._notesDirty = true;
+            panel._lyricsDirty = true;
+            panel.InvalidateVisual();
+        }
     }
 
     private static void OnTrackPlaybackStatesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -241,6 +273,9 @@ public class PianoRollPanel : FrameworkElement
             panel._settings.PitchRowHeight = (double)e.NewValue;
             panel.RebuildLanes();
             panel.InvalidateMeasure();
+            panel._gridDirty = true;
+            panel._notesDirty = true;
+            panel._laneHeadersDirty = true;
             panel.InvalidateVisual();
         }
     }
@@ -255,6 +290,14 @@ public class PianoRollPanel : FrameworkElement
             if (!panel._isSmoothScrolling)
             {
                 panel._interpolatedTime = (TimeSpan)e.NewValue;
+                panel._gridDirty = true;
+                panel._notesDirty = true;
+                panel._lyricsDirty = true;
+                panel._playheadDirty = true;
+                if (panel.ShowPianoKeys)
+                {
+                    panel._laneHeadersDirty = true;
+                }
                 panel.InvalidateVisual();
                 return;
             }
@@ -267,6 +310,14 @@ public class PianoRollPanel : FrameworkElement
                 panel._interpolatedTime = newTime;
                 panel._smoothScrollStopwatch.Restart();
                 panel._lastRenderTime = TimeSpan.Zero;
+                panel._gridDirty = true;
+                panel._notesDirty = true;
+                panel._lyricsDirty = true;
+                panel._playheadDirty = true;
+                if (panel.ShowPianoKeys)
+                {
+                    panel._laneHeadersDirty = true;
+                }
                 panel.InvalidateVisual();
             }
         }
@@ -317,6 +368,43 @@ public class PianoRollPanel : FrameworkElement
         {
             panel.RebuildLanes();
             panel.InvalidateMeasure();
+            panel._lyricsDirty = true;
+            panel.InvalidateVisual();
+        }
+    }
+
+    private static void OnShowTempoChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel._tempoDirty = true;
+            panel.InvalidateVisual();
+        }
+    }
+
+    private static void OnRenderTempoBadgeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel._tempoDirty = true;
+            panel.InvalidateVisual();
+        }
+    }
+
+    private static void OnShowBarsBeatsGridChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel._gridDirty = true;
+            panel.InvalidateVisual();
+        }
+    }
+
+    private static void OnTempoBadgeRightInsetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel._tempoDirty = true;
             panel.InvalidateVisual();
         }
     }
@@ -403,8 +491,20 @@ public class PianoRollPanel : FrameworkElement
     private double _overlayTrackDpi;
     private double _overlayTrackMaxWidth;
 
+    private FormattedText? _tempoText;
+    private double _tempoTextValue;
+    private double _tempoTextDpi;
+
     private IReadOnlyList<LyricLineViewModel> _lyrics = [];
     private INotifyCollectionChanged? _lyricsCollection;
+
+    private bool _backgroundDirty = true;
+    private bool _gridDirty = true;
+    private bool _notesDirty = true;
+    private bool _playheadDirty = true;
+    private bool _laneHeadersDirty = true;
+    private bool _tempoDirty = true;
+    private bool _lyricsDirty = true;
 
     // Cached resources
     private static readonly Pen PlayheadPen;
@@ -427,6 +527,7 @@ public class PianoRollPanel : FrameworkElement
     private static readonly Brush LyricsTextBrush;
     private static readonly Brush LyricsTextDimBrush;
     private static readonly Pen LyricsSeparatorPen;
+    private static readonly Brush TempoBadgeBrush;
 
     private const double LyricsLaneHeight = 26.0;
 
@@ -489,6 +590,8 @@ public class PianoRollPanel : FrameworkElement
         LyricsTextDimBrush.Freeze();
         LyricsSeparatorPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 70, 70, 70)), 1);
         LyricsSeparatorPen.Freeze();
+        TempoBadgeBrush = new SolidColorBrush(Color.FromArgb(200, 60, 60, 65));
+        TempoBadgeBrush.Freeze();
     }
 
     #endregion
@@ -525,6 +628,13 @@ public class PianoRollPanel : FrameworkElement
 
         // Ensure cleanup when unloaded
         Unloaded += (_, _) => StopSmoothScrolling();
+    }
+
+    protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+    {
+        base.OnRenderSizeChanged(sizeInfo);
+        MarkAllDirty();
+        InvalidateVisual();
     }
 
     private void UpdateTrackPlaybackSubscriptions(
@@ -588,6 +698,7 @@ public class PianoRollPanel : FrameworkElement
             e.PropertyName == nameof(TrackPlaybackViewModel.IsMuted))
         {
             UpdateTrackPlaybackState();
+            _notesDirty = true;
             InvalidateVisual();
         }
     }
@@ -708,6 +819,11 @@ public class PianoRollPanel : FrameworkElement
         _isSmoothScrolling = false;
         CompositionTarget.Rendering -= OnCompositionTargetRendering;
         _smoothScrollStopwatch.Stop();
+        _gridDirty = true;
+        _notesDirty = true;
+        _lyricsDirty = true;
+        _playheadDirty = true;
+        _laneHeadersDirty = true;
         InvalidateVisual();
     }
 
@@ -730,11 +846,27 @@ public class PianoRollPanel : FrameworkElement
             if (timeSinceLastRender.TotalMilliseconds < 16.6) // ~60 FPS
             {
                 // Keep keyboard highlights responsive even when throttling the main render.
-                RenderLaneHeaders();
-                RenderPlayhead();
+                _playheadDirty = true;
+                if (ShowPianoKeys)
+                {
+                    _laneHeadersDirty = true;
+                }
+                InvalidateVisual();
                 return;
             }
             _lastRenderTime = elapsed;
+        }
+
+        _gridDirty = true;
+        _notesDirty = true;
+        _playheadDirty = true;
+        if (ShowLyricsLane)
+        {
+            _lyricsDirty = true;
+        }
+        if (ShowPianoKeys)
+        {
+            _laneHeadersDirty = true;
         }
 
         // Trigger a render
@@ -773,7 +905,7 @@ public class PianoRollPanel : FrameworkElement
             var desiredHeight = pitchCount * _settings.PitchRowHeight + GetLyricsLaneHeight();
             return new Size(
                 double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width,
-                Math.Max(double.IsInfinity(availableSize.Height) ? 600 : availableSize.Height, desiredHeight));
+                desiredHeight);
         }
 
         // Calculate total height needed for all lanes
@@ -795,16 +927,9 @@ public class PianoRollPanel : FrameworkElement
         if (OverlayMode && _lanes.Count > 0)
         {
             var lane = _lanes[0];
-            var targetHeight = finalSize.Height - GetLyricsLaneHeight();
-            if (lane.PitchCount > 0)
-            {
-                targetHeight = Math.Max(targetHeight, lane.PitchCount * _settings.PitchRowHeight);
-            }
-
-            if (targetHeight < 0)
-            {
-                targetHeight = 0;
-            }
+            var targetHeight = lane.PitchCount > 0
+                ? lane.PitchCount * _settings.PitchRowHeight
+                : _settings.CalculateLaneHeight();
 
             if (Math.Abs(lane.Height - targetHeight) > 0.1)
             {
@@ -916,17 +1041,12 @@ public class PianoRollPanel : FrameworkElement
         if (OverlayMode)
         {
             // Single lane with all notes overlaid
+            var sortedNotes = _allNotes.OrderBy(n => n.StartTime).ToList();
             var (pitchLow, pitchHigh) = GetLanePitchRange(_allNotes);
             var pitchCount = pitchHigh - pitchLow + 1;
-            var overlayHeight = ActualHeight > 0 ? ActualHeight : 600;
-            if (lyricsOffset > 0)
-            {
-                overlayHeight = Math.Max(0, overlayHeight - lyricsOffset);
-            }
-            if (pitchCount > 0)
-            {
-                overlayHeight = Math.Max(overlayHeight, pitchCount * _settings.PitchRowHeight);
-            }
+            var overlayHeight = pitchCount > 0
+                ? pitchCount * _settings.PitchRowHeight
+                : _settings.CalculateLaneHeight();
             var layout = new LaneLayout
             {
                 Id = new LaneId(0, 0),
@@ -935,10 +1055,10 @@ public class PianoRollPanel : FrameworkElement
                 Height = overlayHeight,
                 PitchLow = pitchLow,
                 PitchHigh = pitchHigh,
-                ActiveTimeline = new LaneEventTimeline(_allNotes)
+                ActiveTimeline = new LaneEventTimeline(sortedNotes)
             };
 
-            layout.Notes.AddRange(_allNotes);
+            layout.Notes.AddRange(sortedNotes);
             _lanes.Add(layout);
         }
         else
@@ -953,6 +1073,7 @@ public class PianoRollPanel : FrameworkElement
             {
                 var trackName = laneId.TrackIndex < _tracks.Count ? _tracks[laneId.TrackIndex].Name : null;
                 var laneNotes = notesByLane[laneId];
+                var sortedNotes = laneNotes.OrderBy(n => n.StartTime).ToList();
                 var (pitchLow, pitchHigh) = GetLanePitchRange(laneNotes);
                 if (CompactPitchRange)
                 {
@@ -971,10 +1092,10 @@ public class PianoRollPanel : FrameworkElement
                     Height = laneHeight,
                     PitchLow = pitchLow,
                     PitchHigh = pitchHigh,
-                    ActiveTimeline = new LaneEventTimeline(laneNotes)
+                    ActiveTimeline = new LaneEventTimeline(sortedNotes)
                 };
 
-                layout.Notes.AddRange(laneNotes);
+                layout.Notes.AddRange(sortedNotes);
                 _lanes.Add(layout);
 
                 yOffset += laneHeight + PianoRollSettings.LaneGap;
@@ -985,6 +1106,7 @@ public class PianoRollPanel : FrameworkElement
         ApplyInstrumentNames();
 
         InvalidateMeasure();
+        MarkAllDirty();
         InvalidateVisual();
     }
 
@@ -1087,6 +1209,7 @@ public class PianoRollPanel : FrameworkElement
         if (Math.Abs(_currentTempo - bpm) < 0.01) return;
 
         _currentTempo = bpm;
+        _tempoDirty = true;
 
         // During smooth scrolling, OnRender will pick up the tempo change.
         // When stopped, we need to trigger a render.
@@ -1120,13 +1243,52 @@ public class PianoRollPanel : FrameworkElement
     {
         base.OnRender(drawingContext);
 
-        RenderBackground();
-        RenderGrid();
-        RenderNotes();
-        RenderLyricsLane();
-        RenderPlayhead();
-        RenderLaneHeaders();
-        RenderTempoDisplay();
+        if (ShowTempo && RenderTempoBadge && _tempoText == null)
+        {
+            _tempoDirty = true;
+        }
+
+        if (_backgroundDirty)
+        {
+            RenderBackground();
+            _backgroundDirty = false;
+        }
+
+        if (_gridDirty)
+        {
+            RenderGrid();
+            _gridDirty = false;
+        }
+
+        if (_notesDirty)
+        {
+            RenderNotes();
+            _notesDirty = false;
+        }
+
+        if (_lyricsDirty)
+        {
+            RenderLyricsLane();
+            _lyricsDirty = false;
+        }
+
+        if (_playheadDirty)
+        {
+            RenderPlayhead();
+            _playheadDirty = false;
+        }
+
+        if (_laneHeadersDirty)
+        {
+            RenderLaneHeaders();
+            _laneHeadersDirty = false;
+        }
+
+        if (_tempoDirty)
+        {
+            RenderTempoDisplay();
+            _tempoDirty = false;
+        }
     }
 
     private void RenderBackground()
@@ -1282,20 +1444,38 @@ public class PianoRollPanel : FrameworkElement
         double rightTime,
         double pixelsPerSecond)
     {
+        if (lane.Notes.Count == 0)
+        {
+            return;
+        }
+
         var pitchCount = lane.PitchCount;
         var rowHeight = lane.Height / pitchCount;
         var useTrackColors = OverlayMode;
 
-        foreach (var note in lane.Notes)
+        var startIndex = FindFirstVisibleNoteIndex(lane.Notes, leftTime);
+        for (var i = startIndex; i < lane.Notes.Count; i++)
         {
+            var note = lane.Notes[i];
             var noteStartSec = note.StartTime.TotalSeconds;
+            if (noteStartSec > rightTime)
+            {
+                break;
+            }
+
             var noteEndSec = note.EndTime.TotalSeconds;
 
             // Skip notes outside visible range
-            if (noteEndSec < leftTime || noteStartSec > rightTime) continue;
+            if (noteEndSec < leftTime)
+            {
+                continue;
+            }
 
             // Skip notes outside pitch range
-            if (note.NoteNumber < lane.PitchLow || note.NoteNumber > lane.PitchHigh) continue;
+            if (note.NoteNumber < lane.PitchLow || note.NoteNumber > lane.PitchHigh)
+            {
+                continue;
+            }
 
             // Calculate X coordinates
             var x1 = PianoRollSettings.LaneHeaderWidth + (noteStartSec - leftTime) * pixelsPerSecond;
@@ -1335,6 +1515,35 @@ public class PianoRollPanel : FrameworkElement
                 dc.DrawRectangle(brush, null, rect);
             }
         }
+    }
+
+    private static int FindFirstVisibleNoteIndex(List<PairedNote> notes, double leftTime)
+    {
+        var low = 0;
+        var high = notes.Count - 1;
+        var result = notes.Count;
+
+        while (low <= high)
+        {
+            var mid = low + (high - low) / 2;
+            if (notes[mid].StartTime.TotalSeconds >= leftTime)
+            {
+                result = mid;
+                high = mid - 1;
+            }
+            else
+            {
+                low = mid + 1;
+            }
+        }
+
+        var startIndex = result == notes.Count ? notes.Count - 1 : result;
+        while (startIndex > 0 && notes[startIndex - 1].EndTime.TotalSeconds >= leftTime)
+        {
+            startIndex--;
+        }
+
+        return Math.Max(startIndex, 0);
     }
 
     private void RenderPlayhead()
@@ -1395,14 +1604,7 @@ public class PianoRollPanel : FrameworkElement
                 continue;
             }
 
-            var formatted = new FormattedText(
-                lyric.Text,
-                System.Globalization.CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                LyricsTypeface,
-                14,
-                lyric.IsActive ? LyricsTextBrush : LyricsTextDimBrush,
-                dpi);
+            var formatted = lyric.GetFormattedText(dpi, LyricsTypeface, 14, LyricsTextBrush, LyricsTextDimBrush);
 
             dc.DrawText(formatted, new Point(x, y));
         }
@@ -1969,6 +2171,7 @@ public class PianoRollPanel : FrameworkElement
         AttachLyricsHandlers();
         RebuildLanes();
         InvalidateMeasure();
+        _lyricsDirty = true;
         InvalidateVisual();
     }
 
@@ -2018,6 +2221,7 @@ public class PianoRollPanel : FrameworkElement
             }
         }
 
+        _lyricsDirty = true;
         InvalidateVisual();
     }
 
@@ -2025,6 +2229,7 @@ public class PianoRollPanel : FrameworkElement
     {
         if (e.PropertyName == nameof(LyricLineViewModel.IsActive))
         {
+            _lyricsDirty = true;
             InvalidateVisual();
         }
     }
@@ -2032,14 +2237,15 @@ public class PianoRollPanel : FrameworkElement
 
     private void InvalidateLaneHeaders()
     {
-        RenderLaneHeaders();
+        _laneHeadersDirty = true;
+        InvalidateVisual();
     }
 
     private void RenderTempoDisplay()
     {
         using var dc = _tempoVisual.RenderOpen();
 
-        if (!ShowTempo)
+        if (!ShowTempo || !RenderTempoBadge)
         {
             // Clear the visual
             return;
@@ -2047,16 +2253,24 @@ public class PianoRollPanel : FrameworkElement
 
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
-        // Draw tempo badge to the left of the vertical zoom buttons
-        var tempoText = $"{_currentTempo:F1} BPM";
-        var formattedText = new FormattedText(
-            tempoText,
-            System.Globalization.CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            LabelTypeface,
-            14,
-            Brushes.White,
-            dpi);
+        if (_tempoText == null
+            || Math.Abs(_tempoTextValue - _currentTempo) > 0.01
+            || Math.Abs(_tempoTextDpi - dpi) > 0.1)
+        {
+            _tempoTextValue = _currentTempo;
+            _tempoTextDpi = dpi;
+            var tempoText = $"{_currentTempo:F1} BPM";
+            _tempoText = new FormattedText(
+                tempoText,
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                LabelTypeface,
+                14,
+                Brushes.White,
+                dpi);
+        }
+
+        var formattedText = _tempoText;
 
         var padding = 8.0;
         var badgeWidth = formattedText.Width + padding * 2;
@@ -2064,14 +2278,17 @@ public class PianoRollPanel : FrameworkElement
         var zoomButtonWidth = 20.0;
         var zoomButtonMargin = 4.0;
         var zoomButtonGap = 8.0;
-        var x = ActualWidth - badgeWidth - zoomButtonWidth - zoomButtonMargin - zoomButtonGap;
+        var rightInset = zoomButtonWidth + zoomButtonMargin + zoomButtonGap;
+        if (OverlayMode && TempoBadgeRightInset > 0)
+        {
+            rightInset = TempoBadgeRightInset;
+        }
+        var x = ActualWidth - badgeWidth - rightInset;
         var y = 10.0;
 
         // Background with slight transparency
-        var badgeBrush = new SolidColorBrush(Color.FromArgb(200, 60, 60, 65));
-        badgeBrush.Freeze();
         dc.DrawRoundedRectangle(
-            badgeBrush,
+            TempoBadgeBrush,
             null,
             new Rect(x, y, badgeWidth, badgeHeight),
             4, 4);
@@ -2094,6 +2311,17 @@ public class PianoRollPanel : FrameworkElement
         if (seconds <= 10) return 10;
         if (seconds <= 30) return 30;
         return 60;
+    }
+
+    private void MarkAllDirty()
+    {
+        _backgroundDirty = true;
+        _gridDirty = true;
+        _notesDirty = true;
+        _playheadDirty = true;
+        _laneHeadersDirty = true;
+        _tempoDirty = true;
+        _lyricsDirty = true;
     }
 
     #endregion

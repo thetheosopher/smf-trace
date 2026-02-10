@@ -268,11 +268,13 @@ public static class TrackColorMapper
 {
     // 16 distinct hue values for tracks
     private static readonly SolidColorBrush[] TrackBrushes;
+    private static readonly SolidColorBrush[,] TrackVelocityBrushes;
 
     static TrackColorMapper()
     {
         // Create 16 distinct colors using HSL color wheel
         TrackBrushes = new SolidColorBrush[16];
+        TrackVelocityBrushes = new SolidColorBrush[16, 128];
 
         var hues = new[]
         {
@@ -300,6 +302,17 @@ public static class TrackColorMapper
             var brush = new SolidColorBrush(color);
             brush.Freeze();
             TrackBrushes[i] = brush;
+
+            for (var velocity = 0; velocity < 128; velocity++)
+            {
+                var factor = 0.5 + 0.5 * (velocity / 127.0);
+                var r = (byte)(color.R * factor);
+                var g = (byte)(color.G * factor);
+                var b = (byte)(color.B * factor);
+                var velocityBrush = new SolidColorBrush(Color.FromRgb(r, g, b));
+                velocityBrush.Freeze();
+                TrackVelocityBrushes[i, velocity] = velocityBrush;
+            }
         }
     }
 
@@ -316,18 +329,8 @@ public static class TrackColorMapper
     /// </summary>
     public static SolidColorBrush GetBrush(int trackIndex, byte velocity)
     {
-        var baseBrush = TrackBrushes[trackIndex % 16];
-        var baseColor = baseBrush.Color;
-
-        // Modulate brightness based on velocity (0.5 to 1.0)
-        var factor = 0.5 + 0.5 * (velocity / 127.0);
-        var r = (byte)(baseColor.R * factor);
-        var g = (byte)(baseColor.G * factor);
-        var b = (byte)(baseColor.B * factor);
-
-        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
+        var index = trackIndex % 16;
+        return TrackVelocityBrushes[index, velocity < 128 ? velocity : 127];
     }
 
     private static Color HslToRgb(double hue, double saturation, double lightness)

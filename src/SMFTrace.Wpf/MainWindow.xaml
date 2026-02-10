@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SMFTrace.Wpf"
         xmlns:controls="clr-namespace:SMFTrace.Wpf.Controls"
+        xmlns:converters="clr-namespace:SMFTrace.Wpf.Converters"
         xmlns:views="clr-namespace:SMFTrace.Wpf.Views"
         xmlns:vm="clr-namespace:SMFTrace.Wpf.ViewModels"
         mc:Ignorable="d"
@@ -17,6 +18,7 @@
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <converters:RightInsetConverter x:Key="RightInsetConverter"/>
         <Style TargetType="Button" x:Key="ToolbarButtonStyle">
             <Setter Property="Padding" Value="8,4"/>
             <Setter Property="Margin" Value="2"/>
@@ -435,7 +437,7 @@
                      DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
                 <ToggleButton Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Compact lane pitch range to used notes"/>
                 <ToggleButton Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Overlay all tracks with distinct colors"/>
-                <ToggleButton Content="M/S" IsChecked="{Binding ShowTrackControls}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show track mute/solo"/>
+                <ToggleButton Content="Mute/Solo" IsChecked="{Binding ShowTrackControls}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show track mute/solo"/>
                 <ToggleButton Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource IconToggleButtonStyle}"/>
                 <ToggleButton Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show note names in lane headers"/>
                 <ToggleButton Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show piano keys in lane headers"/>
@@ -520,12 +522,12 @@
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding DisplayName}" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                                 <ToggleButton Grid.Column="1"
-                                                              Content="M"
+                                                              Content="Mute"
                                                               ToolTip="Mute"
                                                               IsChecked="{Binding IsMuted}"
                                                               Style="{StaticResource TrackToggleButtonStyle}"/>
                                                 <ToggleButton Grid.Column="2"
-                                                              Content="S"
+                                                              Content="Solo"
                                                               ToolTip="Solo"
                                                               IsChecked="{Binding IsSolo}"
                                                               Style="{StaticResource TrackToggleButtonStyle}"/>
@@ -546,6 +548,7 @@
                                                      PitchRowHeight="{Binding PitchRowHeight}"
                                                      MidiFormat="{Binding MidiFormat}"
                                                      ShowTempo="{Binding ShowTempo}"
+                                                     RenderTempoBadge="False"
                                                      ShowBarsBeatsGrid="{Binding ShowBarsBeatsGrid}"
                                                      ShowNoteNames="{Binding ShowNoteNames}"
                                                      ShowPianoKeys="{Binding ShowPianoKeys}"
@@ -554,12 +557,20 @@
                                                      IsPlaying="{Binding IsPlaying}"
                                                      ShowLyricsLane="{Binding ShowLyricsLane}"
                                                      Lyrics="{Binding Lyrics}"
-                                                     TrackPlaybackStates="{Binding TrackPlaybackStates}"/>
+                                                     TrackPlaybackStates="{Binding TrackPlaybackStates}">
+                                <controls:PianoRollPanel.TempoBadgeRightInset>
+                                    <MultiBinding Converter="{StaticResource RightInsetConverter}" ConverterParameter="8">
+                                        <Binding ElementName="ZoomButtons" Path="ActualWidth"/>
+                                        <Binding ElementName="ZoomButtons" Path="Margin"/>
+                                    </MultiBinding>
+                                </controls:PianoRollPanel.TempoBadgeRightInset>
+                            </controls:PianoRollPanel>
                         </ScrollViewer>
                         <StackPanel Orientation="Vertical"
+                                    x:Name="ZoomButtons"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Top"
-                                    Margin="0,4,4,0"
+                                    Margin="0,4,24,0"
                                     Panel.ZIndex="5">
                             <Button Content="-"
                                     Command="{Binding VerticalZoomOutCommand}"
@@ -571,6 +582,24 @@
                                     ToolTip="Increase lane height"
                                     Margin="0,2,0,0"/>
                         </StackPanel>
+                        <Border HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Panel.ZIndex="6"
+                                Background="#C83C3C41"
+                                CornerRadius="4"
+                                Padding="8,4"
+                                Visibility="{Binding ShowTempo, Converter={StaticResource BoolToVisibility}}">
+                            <Border.Margin>
+                                <MultiBinding Converter="{StaticResource RightInsetConverter}" ConverterParameter="8,10">
+                                    <Binding ElementName="ZoomButtons" Path="ActualWidth"/>
+                                    <Binding ElementName="ZoomButtons" Path="Margin"/>
+                                </MultiBinding>
+                            </Border.Margin>
+                            <TextBlock Foreground="White"
+                                       FontFamily="Segoe UI"
+                                       FontSize="14"
+                                       Text="{Binding EffectiveTempo, StringFormat={}{0:F1} BPM}"/>
+                        </Border>
                     </Grid>
                 </Grid>
             </TabItem>
