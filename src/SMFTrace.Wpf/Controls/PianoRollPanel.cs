@@ -123,6 +123,13 @@ public class PianoRollPanel : FrameworkElement
             typeof(PianoRollPanel),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnCompactPitchRangeChanged));
 
+    public static readonly DependencyProperty TrackPlaybackStatesProperty =
+        DependencyProperty.Register(
+            nameof(TrackPlaybackStates),
+            typeof(IReadOnlyList<TrackPlaybackViewModel>),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(Array.Empty<TrackPlaybackViewModel>(), OnTrackPlaybackStatesChanged));
+
     public TimeSpan CurrentTime
     {
         get => (TimeSpan)GetValue(CurrentTimeProperty);
@@ -206,9 +213,25 @@ public class PianoRollPanel : FrameworkElement
         set => SetValue(CompactPitchRangeProperty, value);
     }
 
+    public IReadOnlyList<TrackPlaybackViewModel> TrackPlaybackStates
+    {
+        get => (IReadOnlyList<TrackPlaybackViewModel>)GetValue(TrackPlaybackStatesProperty);
+        set => SetValue(TrackPlaybackStatesProperty, value);
+    }
+
     private static void OnWindowSecondsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         // Trigger re-render
+    }
+
+    private static void OnTrackPlaybackStatesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel.UpdateTrackPlaybackSubscriptions(
+                e.OldValue as IReadOnlyList<TrackPlaybackViewModel>,
+                e.NewValue as IReadOnlyList<TrackPlaybackViewModel>);
+        }
     }
 
     private static void OnPitchRowHeightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -359,6 +382,9 @@ public class PianoRollPanel : FrameworkElement
     private readonly int[] _liveOverlayCounts = new int[128];
     private readonly bool[] _liveActiveOverlay = new bool[128];
     private bool _useLiveActiveNotes;
+    private IReadOnlyList<TrackPlaybackViewModel> _trackPlaybackStates = Array.Empty<TrackPlaybackViewModel>();
+    private bool _hasSoloTracks;
+    private readonly HashSet<int> _soloTrackIndices = [];
 
     // Smooth scrolling fields
     private readonly Stopwatch _smoothScrollStopwatch = new();
@@ -497,6 +523,84 @@ public class PianoRollPanel : FrameworkElement
 
         // Ensure cleanup when unloaded
         Unloaded += (_, _) => StopSmoothScrolling();
+    }
+
+    private void UpdateTrackPlaybackSubscriptions(
+        IReadOnlyList<TrackPlaybackViewModel>? oldStates,
+        IReadOnlyList<TrackPlaybackViewModel>? newStates)
+    {
+        if (oldStates is INotifyCollectionChanged oldCollection)
+        {
+            oldCollection.CollectionChanged -= OnTrackPlaybackCollectionChanged;
+        }
+
+        if (oldStates != null)
+        {
+            foreach (var state in oldStates)
+            {
+                state.PropertyChanged -= OnTrackPlaybackPropertyChanged;
+            }
+        }
+
+        _trackPlaybackStates = newStates ?? Array.Empty<TrackPlaybackViewModel>();
+
+        if (_trackPlaybackStates is INotifyCollectionChanged newCollection)
+        {
+            newCollection.CollectionChanged += OnTrackPlaybackCollectionChanged;
+        }
+
+        foreach (var state in _trackPlaybackStates)
+        {
+            state.PropertyChanged += OnTrackPlaybackPropertyChanged;
+        }
+
+        UpdateSoloState();
+        InvalidateVisual();
+    }
+
+    private void OnTrackPlaybackCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems != null)
+        {
+            foreach (TrackPlaybackViewModel state in e.OldItems)
+            {
+                state.PropertyChanged -= OnTrackPlaybackPropertyChanged;
+            }
+        }
+
+        if (e.NewItems != null)
+        {
+            foreach (TrackPlaybackViewModel state in e.NewItems)
+            {
+                state.PropertyChanged += OnTrackPlaybackPropertyChanged;
+            }
+        }
+
+        UpdateSoloState();
+        InvalidateVisual();
+    }
+
+    private void OnTrackPlaybackPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TrackPlaybackViewModel.IsSolo))
+        {
+            UpdateSoloState();
+            InvalidateVisual();
+        }
+    }
+
+    private void UpdateSoloState()
+    {
+        _soloTrackIndices.Clear();
+        foreach (var state in _trackPlaybackStates)
+        {
+            if (state.IsSolo)
+            {
+                _soloTrackIndices.Add(state.TrackIndex);
+            }
+        }
+
+        _hasSoloTracks = _soloTrackIndices.Count > 0;
     }
 
     private void EnsureScrollViewer()
@@ -1191,7 +1295,16 @@ public class PianoRollPanel : FrameworkElement
                 ? TrackColorMapper.GetBrush(GetOverlayColorTrackIndex(note.TrackIndex), note.Velocity)
                 : VelocityColorMapper.GetBrush(note.Velocity);
 
-            dc.DrawRectangle(brush, null, rect);
+            if (_hasSoloTracks && !_soloTrackIndices.Contains(note.TrackIndex))
+            {
+                dc.PushOpacity(0.35);
+                dc.DrawRectangle(brush, null, rect);
+                dc.Pop();
+            }
+            else
+            {
+                dc.DrawRectangle(brush, null, rect);
+            }
         }
     }
 

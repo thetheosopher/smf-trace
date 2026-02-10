@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         SizeChanged += OnSizeChanged;
         LocationChanged += OnLocationChanged;
         PreviewKeyDown += OnPreviewKeyDown;
+        PreviewMouseWheel += OnPreviewMouseWheel;
         DragOver += OnDragOver;
         Drop += OnDrop;
     }
@@ -216,6 +217,25 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
+    }
+
+    private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            return;
+        }
+
+        if (e.Delta > 0)
+        {
+            _viewModel.VerticalZoomInCommand.Execute(null);
+        }
+        else if (e.Delta < 0)
+        {
+            _viewModel.VerticalZoomOutCommand.Execute(null);
+        }
+
+        e.Handled = true;
     }
 
     private void OnDragOver(object sender, DragEventArgs e)

@@ -553,7 +553,8 @@
                                                      OverlayMode="{Binding OverlayMode}"
                                                      IsPlaying="{Binding IsPlaying}"
                                                      ShowLyricsLane="{Binding ShowLyricsLane}"
-                                                     Lyrics="{Binding Lyrics}"/>
+                                                     Lyrics="{Binding Lyrics}"
+                                                     TrackPlaybackStates="{Binding TrackPlaybackStates}"/>
                         </ScrollViewer>
                         <StackPanel Orientation="Vertical"
                                     HorizontalAlignment="Right"

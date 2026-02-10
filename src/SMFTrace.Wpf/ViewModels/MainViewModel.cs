@@ -603,6 +603,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             IsFileLoaded = false;
             ClearLyrics();
+            ResetTrackPlaybackStates();
             // Stop any existing playback
             var oldEngine = _engine;
             if (_engine != null)
@@ -1293,13 +1294,36 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
+        var tracksWithNotes = _fileData.Events
+            .OfType<NoteOnEvent>()
+            .Where(evt => evt.Velocity > 0)
+            .Select(evt => evt.TrackIndex)
+            .Distinct()
+            .ToHashSet();
+
         foreach (var track in _fileData.Tracks)
         {
+            if (!tracksWithNotes.Contains(track.Index))
+            {
+                continue;
+            }
+
             var vm = new TrackPlaybackViewModel(track.Index, track.Name);
             vm.PropertyChanged += OnTrackPlaybackStateChanged;
             TrackPlaybackStates.Add(vm);
         }
 
+        OnPropertyChanged(nameof(HasTrackPlaybackStates));
+    }
+
+    private void ResetTrackPlaybackStates()
+    {
+        foreach (var track in TrackPlaybackStates)
+        {
+            track.PropertyChanged -= OnTrackPlaybackStateChanged;
+        }
+
+        TrackPlaybackStates.Clear();
         OnPropertyChanged(nameof(HasTrackPlaybackStates));
     }
 
@@ -1319,19 +1343,22 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        if (TrackPlaybackStates.Count == 0)
+        if (_fileData == null)
         {
-            _engine.SetTrackActivityMask([]);
             return;
         }
 
         var anySolo = TrackPlaybackStates.Any(track => track.IsSolo);
-        var mask = new bool[TrackPlaybackStates.Count];
+        var mask = new bool[_fileData.Tracks.Count];
+        Array.Fill(mask, !anySolo);
 
         for (var i = 0; i < TrackPlaybackStates.Count; i++)
         {
             var track = TrackPlaybackStates[i];
-            mask[i] = anySolo ? track.IsSolo : !track.IsMuted;
+            if (track.TrackIndex >= 0 && track.TrackIndex < mask.Length)
+            {
+                mask[track.TrackIndex] = anySolo ? track.IsSolo : !track.IsMuted;
+            }
         }
 
         _engine.SetTrackActivityMask(mask);

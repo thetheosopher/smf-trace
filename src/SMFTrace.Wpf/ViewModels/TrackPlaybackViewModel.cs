@@ -16,8 +16,8 @@ public sealed class TrackPlaybackViewModel : INotifyPropertyChanged
     {
         TrackIndex = trackIndex;
         DisplayName = string.IsNullOrWhiteSpace(name)
-            ? $"Track {trackIndex + 1}"
-            : $"Track {trackIndex + 1}: {name}";
+            ? $"Track {trackIndex}"
+            : name;
     }
 
     public int TrackIndex { get; }
