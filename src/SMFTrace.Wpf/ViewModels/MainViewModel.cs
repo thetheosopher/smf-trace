@@ -840,6 +840,69 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    public async Task RemovePlaylistEntriesAsync(IReadOnlyCollection<PlaylistEntry> entries)
+    {
+        if (entries.Count == 0 || PlaylistEntries.Count == 0)
+        {
+            return;
+        }
+
+        var entrySet = new HashSet<PlaylistEntry>(entries);
+        var removedIndices = new List<int>();
+        for (var i = 0; i < PlaylistEntries.Count; i++)
+        {
+            if (entrySet.Contains(PlaylistEntries[i]))
+            {
+                removedIndices.Add(i);
+            }
+        }
+
+        if (removedIndices.Count == 0)
+        {
+            return;
+        }
+
+        removedIndices.Sort();
+
+        var removedNowPlaying = _nowPlayingIndex >= 0 && removedIndices.BinarySearch(_nowPlayingIndex) >= 0;
+        if (removedNowPlaying)
+        {
+            _userStopRequested = true;
+            _forceStopPosition = _engine != null;
+            _isSeeking = false;
+
+            _engine?.Stop();
+            StopAllNotesOnOutput();
+            RaiseAllNotesCleared();
+
+            await Task.Delay(500);
+
+            _forceStopPosition = false;
+            CurrentTime = TimeSpan.Zero;
+            OnPropertyChanged(nameof(SeekPosition));
+            PlaybackState = PlaybackState.Stopped;
+            _userStopRequested = false;
+        }
+
+        for (var i = removedIndices.Count - 1; i >= 0; i--)
+        {
+            PlaylistEntries.RemoveAt(removedIndices[i]);
+        }
+
+        _nowPlayingIndex = ReindexAfterRemoval(_nowPlayingIndex, removedIndices);
+        _currentPlaylistIndex = ReindexAfterRemoval(_currentPlaylistIndex, removedIndices);
+
+        foreach (var entry in PlaylistEntries)
+        {
+            entry.IsNowPlaying = false;
+        }
+
+        if (_nowPlayingIndex >= 0 && _nowPlayingIndex < PlaylistEntries.Count)
+        {
+            PlaylistEntries[_nowPlayingIndex].IsNowPlaying = true;
+        }
+    }
+
     private async Task StopPlaybackForReplaceAsync()
     {
         _userStopRequested = true;
@@ -915,6 +978,34 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         PlaylistEntries.Clear();
         _currentPlaylistIndex = -1;
         _nowPlayingIndex = -1;
+    }
+
+    private static int ReindexAfterRemoval(int index, List<int> removedIndices)
+    {
+        if (index < 0)
+        {
+            return -1;
+        }
+
+        if (removedIndices.BinarySearch(index) >= 0)
+        {
+            return -1;
+        }
+
+        var shift = 0;
+        for (var i = 0; i < removedIndices.Count; i++)
+        {
+            if (removedIndices[i] < index)
+            {
+                shift++;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return index - shift;
     }
 
     private void EnsurePlaylistParser()

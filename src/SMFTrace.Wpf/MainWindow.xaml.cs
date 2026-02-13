@@ -265,8 +265,38 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Delete && MainTabs.SelectedIndex == 1)
+        {
+            var selectedEntries = PlaylistGrid.SelectedItems
+                .OfType<PlaylistEntry>()
+                .ToList();
+
+            if (selectedEntries.Count > 0)
+            {
+                var isShift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+                if (!isShift)
+                {
+                    var confirm = MessageBox.Show(
+                        "Are you sure you want to remove the selected files?",
+                        "Confirm Remove",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (confirm != MessageBoxResult.Yes)
+                    {
+                        e.Handled = true;
+                        return;
+                    }
+                }
+
+                await _viewModel.RemovePlaylistEntriesAsync(selectedEntries);
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key == Key.P && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
         {
             _viewModel.PanicCommand.Execute(null);
