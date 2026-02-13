@@ -22,9 +22,12 @@ public interface ISequencerOutput
 /// </summary>
 public sealed class SequencerEngine : IDisposable
 {
+    private readonly record struct TempoPoint(long Tick, double Bpm);
+
     private readonly MidiFileData _fileData;
     private readonly StateSnapshotBuilder _snapshotBuilder;
     private readonly PlaybackOptions _options;
+    private readonly TempoPoint[] _tempoPoints;
     private readonly object _lock = new();
     private double _tempoAdjustmentBpm;
     private readonly bool[,] _activeNotes = new bool[16, 128];
@@ -73,6 +76,7 @@ public sealed class SequencerEngine : IDisposable
         _fileData = fileData ?? throw new ArgumentNullException(nameof(fileData));
         _options = options ?? new PlaybackOptions();
         _snapshotBuilder = new StateSnapshotBuilder(fileData.Events);
+        _tempoPoints = BuildTempoPoints(fileData.Events);
         _tempoAdjustmentBpm = _options.TempoAdjustmentBpm;
         _trackActivityMask = CreateDefaultTrackMask(fileData.Tracks.Count);
     }
@@ -114,6 +118,14 @@ public sealed class SequencerEngine : IDisposable
                 _tempoAdjustmentBpm = value;
             }
         }
+    }
+
+#pragma warning disable CA1711 // SysEx is an industry-standard term
+    public bool DisableSysExOutput
+#pragma warning restore CA1711
+    {
+        get { lock (_lock) return _options.DisableSysExOutput; }
+        set { lock (_lock) _options.DisableSysExOutput = value; }
     }
 
     /// <summary>Total duration of the file.</summary>
@@ -471,7 +483,7 @@ public sealed class SequencerEngine : IDisposable
                 var elapsed = stopwatch.Elapsed;
                 var speed = GetTempoAdjustedSpeed(_currentTick, _tempoAdjustmentBpm);
                 _currentTime = GetScaledTime(ref startTime, elapsed, ref lastSpeed, speed);
-                _currentTick = TimeToTick(_currentTime);
+                _currentTick = EstimateTickAtTime(eventIndex, _currentTime);
             }
 
             // Wait until it's time to dispatch this event
@@ -503,7 +515,7 @@ public sealed class SequencerEngine : IDisposable
                         var elapsed = stopwatch.Elapsed;
                         var speedForUpdate = GetTempoAdjustedSpeed(_currentTick, _tempoAdjustmentBpm);
                         _currentTime = GetScaledTime(ref startTime, elapsed, ref lastSpeed, speedForUpdate);
-                        _currentTick = TimeToTick(_currentTime);
+                        _currentTick = EstimateTickAtTime(eventIndex, _currentTime);
                     }
 
                     // Raise periodic position update for smooth UI
@@ -579,14 +591,13 @@ public sealed class SequencerEngine : IDisposable
 
     private double GetTempoAtTick(long tick)
     {
-        var tempoMap = _fileData.TempoMap;
-        if (tempoMap == null)
+        if (_tempoPoints.Length == 0)
         {
             return 120.0;
         }
 
-        var tempo = tempoMap.GetTempoAtTime(new MidiTimeSpan(tick));
-        return tempo.BeatsPerMinute;
+        var index = FindTempoPointIndex(tick);
+        return _tempoPoints[index].Bpm;
     }
 
     private void ResetForLoop(Stopwatch stopwatch)
@@ -675,7 +686,10 @@ public sealed class SequencerEngine : IDisposable
                 break;
 
             case SysExEvent sysex:
-                _output.SendSysEx(sysex.Data);
+                if (!_options.DisableSysExOutput)
+                {
+                    _output.SendSysEx(sysex.Data);
+                }
                 break;
         }
 
@@ -755,6 +769,115 @@ public sealed class SequencerEngine : IDisposable
     {
         var metric = new MetricTimeSpan(time);
         return TimeConverter.ConvertFrom(metric, _fileData.TempoMap);
+    }
+
+    private long EstimateTickAtTime(int nextEventIndex, TimeSpan time)
+    {
+        var events = _fileData.Events;
+        var count = events.Count;
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        if (nextEventIndex <= 0)
+        {
+            var first = events[0];
+            if (first.Time <= TimeSpan.Zero || first.AbsoluteTick <= 0)
+            {
+                return 0;
+            }
+
+            var ratio = Math.Clamp((double)time.Ticks / first.Time.Ticks, 0.0, 1.0);
+            return (long)Math.Round(first.AbsoluteTick * ratio);
+        }
+
+        if (nextEventIndex >= count)
+        {
+            return _fileData.TotalTicks;
+        }
+
+        var previous = events[nextEventIndex - 1];
+        var next = events[nextEventIndex];
+
+        if (time <= previous.Time)
+        {
+            return previous.AbsoluteTick;
+        }
+
+        if (time >= next.Time)
+        {
+            return next.AbsoluteTick;
+        }
+
+        var timeDeltaTicks = next.Time.Ticks - previous.Time.Ticks;
+        var tickDelta = next.AbsoluteTick - previous.AbsoluteTick;
+        if (timeDeltaTicks <= 0 || tickDelta <= 0)
+        {
+            return previous.AbsoluteTick;
+        }
+
+        var interpolation = (double)(time.Ticks - previous.Time.Ticks) / timeDeltaTicks;
+        var estimated = previous.AbsoluteTick + (long)Math.Round(tickDelta * interpolation);
+        return Math.Clamp(estimated, previous.AbsoluteTick, next.AbsoluteTick);
+    }
+
+    private static TempoPoint[] BuildTempoPoints(IReadOnlyList<MidiEventBase> events)
+    {
+        var points = new List<TempoPoint> { new(0, 120.0) };
+
+        for (var i = 0; i < events.Count; i++)
+        {
+            if (events[i] is not MetaEvent { IsSetTempo: true } tempo)
+            {
+                continue;
+            }
+
+            var tick = tempo.AbsoluteTick;
+            var bpm = tempo.Bpm > 0.0 ? tempo.Bpm : 120.0;
+            if (points[^1].Tick == tick)
+            {
+                points[^1] = new TempoPoint(tick, bpm);
+            }
+            else
+            {
+                points.Add(new TempoPoint(tick, bpm));
+            }
+        }
+
+        return points.ToArray();
+    }
+
+    private int FindTempoPointIndex(long tick)
+    {
+        if (_tempoPoints.Length == 1 || tick <= _tempoPoints[0].Tick)
+        {
+            return 0;
+        }
+
+        var low = 0;
+        var high = _tempoPoints.Length - 1;
+
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            var midTick = _tempoPoints[mid].Tick;
+            if (midTick == tick)
+            {
+                return mid;
+            }
+
+            if (midTick < tick)
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return high < 0 ? 0 : high;
     }
 
     private void SetState(PlaybackState newState)

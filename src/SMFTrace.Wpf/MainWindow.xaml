@@ -439,6 +439,10 @@
                 <ToggleButton Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Overlay all tracks with distinct colors"/>
                 <ToggleButton Content="Mute/Solo" IsChecked="{Binding ShowTrackControls}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show track mute/solo"/>
                 <ToggleButton Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource IconToggleButtonStyle}"/>
+                <ToggleButton Content="No SysEx"
+                              IsChecked="{Binding DisableSysExOutput}"
+                              Style="{StaticResource IconToggleButtonStyle}"
+                              ToolTip="Disable SysEx output"/>
                 <ToggleButton Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show note names in lane headers"/>
                 <ToggleButton Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show piano keys in lane headers"/>
                 <ToggleButton Content="Lyrics"

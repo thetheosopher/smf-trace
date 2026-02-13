@@ -56,6 +56,13 @@ public sealed class AppSettings
     public double TempoAdjustmentBpm { get; set; }
 
     /// <summary>
+    /// Whether SysEx output transmission is disabled.
+    /// </summary>
+#pragma warning disable CA1711 // SysEx is an industry-standard term
+    public bool DisableSysExOutput { get; set; }
+#pragma warning restore CA1711
+
+    /// <summary>
     /// Default instrument program number (0-127) used when no Program Change exists.
     /// </summary>
     public int DefaultInstrumentProgram { get; set; }

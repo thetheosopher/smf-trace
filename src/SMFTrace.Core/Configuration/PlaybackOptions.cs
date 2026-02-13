@@ -24,4 +24,11 @@ public sealed class PlaybackOptions
     /// Tempo adjustment in BPM applied on top of the file tempo map.
     /// </summary>
     public double TempoAdjustmentBpm { get; set; }
+
+    /// <summary>
+    /// When true, SysEx events are suppressed from output transmission.
+    /// </summary>
+#pragma warning disable CA1711 // SysEx is an industry-standard term
+    public bool DisableSysExOutput { get; set; }
+#pragma warning restore CA1711
 }

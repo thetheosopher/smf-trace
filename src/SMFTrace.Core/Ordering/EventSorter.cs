@@ -7,14 +7,34 @@ namespace SMFTrace.Core.Ordering;
 /// </summary>
 public static class EventSorter
 {
+    private readonly record struct IndexedEvent(MidiEventBase Event, int Index);
+
     /// <summary>
     /// Sorts events in place using the intra-tick ordering rules.
     /// </summary>
     /// <param name="events">The events to sort.</param>
     public static void Sort(List<MidiEventBase> events)
     {
-        // Use stable sort to preserve relative order for equal priorities
-        events.Sort(IntraTickComparer.Instance);
+        if (events.Count <= 1)
+        {
+            return;
+        }
+
+        // Use a stable sort to preserve relative input order for fully equal comparisons.
+        var indexed = events
+            .Select((evt, index) => new IndexedEvent(evt, index))
+            .ToList();
+
+        indexed.Sort((left, right) =>
+        {
+            var comparison = IntraTickComparer.Instance.Compare(left.Event, right.Event);
+            return comparison != 0 ? comparison : left.Index.CompareTo(right.Index);
+        });
+
+        for (var i = 0; i < indexed.Count; i++)
+        {
+            events[i] = indexed[i].Event;
+        }
     }
 
     /// <summary>

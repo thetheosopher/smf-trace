@@ -1,4 +1,5 @@
 using SMFTrace.Core.Models;
+using SMFTrace.Core.Configuration;
 using SMFTrace.Core.Sequencer;
 
 namespace SMFTrace.Core.Tests;
@@ -77,6 +78,34 @@ public class SequencerEngineTests
             Tracks = [],
             Duration = TimeSpan.FromSeconds(1),
             TotalTicks = 960,
+            TicksPerQuarterNote = 480,
+            TempoMap = Melanchall.DryWetMidi.Interaction.TempoMap.Default
+        };
+    }
+
+    private static MidiFileData CreateSysExFileData()
+    {
+        var events = new List<MidiEventBase>
+        {
+            new SysExEvent
+            {
+                AbsoluteTick = 0,
+                Time = TimeSpan.Zero,
+                TrackIndex = 0,
+                OriginalIndex = 0,
+                RawBytes = [0xF0, 0x7D, 0x01, 0xF7],
+                Data = [0xF0, 0x7D, 0x01, 0xF7]
+            }
+        };
+
+        return new MidiFileData
+        {
+            FilePath = "sysex.mid",
+            Format = 1,
+            Events = events,
+            Tracks = [],
+            Duration = TimeSpan.FromMilliseconds(50),
+            TotalTicks = 1,
             TicksPerQuarterNote = 480,
             TempoMap = Melanchall.DryWetMidi.Interaction.TempoMap.Default
         };
@@ -270,5 +299,39 @@ public class SequencerEngineTests
         // Assert
         Assert.Equal(TimeSpan.FromSeconds(1), engine.Duration);
         Assert.Equal(960, engine.TotalTicks);
+    }
+
+    [Fact]
+    public void SysExIsSentByDefault()
+    {
+        // Arrange
+        var fileData = CreateSysExFileData();
+        using var engine = new SequencerEngine(fileData);
+        var output = new MockSequencerOutput();
+        engine.SetOutput(output);
+
+        // Act
+        engine.Play();
+        Thread.Sleep(75);
+
+        // Assert
+        Assert.NotEmpty(output.SysExMessages);
+    }
+
+    [Fact]
+    public void DisableSysExOutputSuppressesTransmission()
+    {
+        // Arrange
+        var fileData = CreateSysExFileData();
+        using var engine = new SequencerEngine(fileData, new PlaybackOptions { DisableSysExOutput = true });
+        var output = new MockSequencerOutput();
+        engine.SetOutput(output);
+
+        // Act
+        engine.Play();
+        Thread.Sleep(75);
+
+        // Assert
+        Assert.Empty(output.SysExMessages);
     }
 }

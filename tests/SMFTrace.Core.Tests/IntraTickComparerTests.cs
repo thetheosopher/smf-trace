@@ -314,4 +314,22 @@ public class IntraTickComparerTests
         Assert.IsType<ProgramChangeEvent>(events[0]);
         Assert.IsType<NoteOnEvent>(events[1]);
     }
+
+    [Fact]
+    public void StableSortPreservesInputOrderWhenComparerReturnsEqual()
+    {
+        // Arrange - same tick, same priority, same track and original index => comparer returns 0
+        var first = CreateMetaEvent(100, 0, 0, 0x01);
+        var second = CreateMetaEvent(100, 0, 0, 0x02);
+        var third = CreateMetaEvent(100, 0, 0, 0x03);
+        var events = new List<MidiEventBase> { second, third, first };
+
+        // Act
+        EventSorter.Sort(events);
+
+        // Assert - stable sort preserves original input order for equal comparisons
+        Assert.Same(second, events[0]);
+        Assert.Same(third, events[1]);
+        Assert.Same(first, events[2]);
+    }
 }

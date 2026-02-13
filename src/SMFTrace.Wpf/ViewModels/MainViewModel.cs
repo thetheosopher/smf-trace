@@ -38,6 +38,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showLyricsLane;
     private double _pitchRowHeight = 8.0;
     private bool _loopPlayback;
+    private bool _disableSysExOutput;
     private double _tempoAdjustmentBpm;
     private int _defaultInstrumentProgram;
     private bool _fileHasProgramChanges;
@@ -140,6 +141,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _showTempo = s.ShowTempo;
         _showBarsBeatsGrid = s.ShowBarsBeatsGrid;
         _loopPlayback = s.LoopPlayback;
+        _disableSysExOutput = s.DisableSysExOutput;
         _tempoAdjustmentBpm = s.TempoAdjustmentBpm;
         _defaultInstrumentProgram = Math.Clamp(s.DefaultInstrumentProgram, 0, 127);
         _showNoteNames = s.ShowNoteNames;
@@ -173,6 +175,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.ShowTempo = ShowTempo;
         s.ShowBarsBeatsGrid = ShowBarsBeatsGrid;
         s.LoopPlayback = LoopPlayback;
+        s.DisableSysExOutput = DisableSysExOutput;
         s.TempoAdjustmentBpm = TempoAdjustmentBpm;
         s.DefaultInstrumentProgram = _defaultInstrumentProgram;
         s.ShowNoteNames = ShowNoteNames;
@@ -282,6 +285,20 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (SetField(ref _loopPlayback, value))
             {
                 UpdateEngineLoopMode();
+            }
+        }
+    }
+
+#pragma warning disable CA1711 // SysEx is an industry-standard term
+    public bool DisableSysExOutput
+#pragma warning restore CA1711
+    {
+        get => _disableSysExOutput;
+        set
+        {
+            if (SetField(ref _disableSysExOutput, value) && _engine != null)
+            {
+                _engine.DisableSysExOutput = value;
             }
         }
     }
@@ -635,6 +652,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _engine = new SequencerEngine(_fileData, new SMFTrace.Core.Configuration.PlaybackOptions
             {
                 LoopPlayback = LoopPlayback,
+                DisableSysExOutput = DisableSysExOutput,
                 TempoAdjustmentBpm = TempoAdjustmentBpm
             });
             _engine.PositionChanged += OnPositionChanged;
