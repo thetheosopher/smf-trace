@@ -9,7 +9,6 @@ You are optimizing the piano roll rendering in SMF Trace.
 
 ## Performance Targets
 - **60 FPS** primary target
-- **30 FPS** fallback option (user-selectable via FPS toggle)
 - Must handle large orchestral MIDI files (10K+ notes)
 
 ## Rendering Architecture
