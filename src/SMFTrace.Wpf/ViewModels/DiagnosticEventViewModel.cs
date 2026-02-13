@@ -14,11 +14,27 @@ public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
 {
     private bool _isCurrent;
     private readonly MidiEventBase _event;
+    private readonly string _eventType;
+    private readonly string _channel;
+    private readonly string _summary;
+    private readonly string _rawBytesHex;
+    private readonly EventCategory _category;
+    private readonly bool _isMeta;
+    private readonly bool _isSysExEvent;
+    private readonly bool _isChannel;
 
     public DiagnosticEventViewModel(MidiEventBase evt, int index)
     {
         _event = evt;
         Index = index;
+        _eventType = BuildEventType(evt);
+        _channel = BuildChannel(evt);
+        _summary = BuildSummary(evt);
+        _rawBytesHex = BuildRawBytesHex(evt.RawBytes);
+        _category = BuildCategory(evt);
+        _isMeta = evt is MetaEvent;
+        _isSysExEvent = evt is SysExEvent;
+        _isChannel = evt is ChannelEventBase;
     }
 
     /// <summary>List index for display.</summary>
@@ -37,70 +53,31 @@ public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
     public int Track => _event.TrackIndex;
 
     /// <summary>Event type name for display.</summary>
-    public string EventType => _event switch
-    {
-        NoteOnEvent => "Note On",
-        NoteOffEvent => "Note Off",
-        ControlChangeEvent => "Control Change",
-        ProgramChangeEvent => "Program Change",
-        PitchBendEvent => "Pitch Bend",
-        ChannelPressureEvent => "Channel Pressure",
-        PolyPressureEvent => "Poly Pressure",
-        MetaEvent meta => $"Meta: {meta.TypeName}",
-        SysExEvent => "SysEx",
-        _ => "Unknown"
-    };
+    public string EventType => _eventType;
 
     /// <summary>Channel number (1-16) or empty for non-channel events.</summary>
-    public string Channel => _event switch
-    {
-        ChannelEventBase ch => (ch.Channel + 1).ToString(CultureInfo.InvariantCulture),
-        _ => ""
-    };
+    public string Channel => _channel;
 
     /// <summary>Summary of event data.</summary>
-    public string Summary => _event switch
-    {
-        NoteOnEvent n => $"Note {NoteNumberToName(n.NoteNumber)} Vel {n.Velocity}",
-        NoteOffEvent n => $"Note {NoteNumberToName(n.NoteNumber)} Vel {n.Velocity}",
-        ControlChangeEvent cc => $"CC{cc.ControllerNumber} = {cc.Value}",
-        ProgramChangeEvent pc => $"Program {pc.ProgramNumber}",
-        PitchBendEvent pb => $"Bend {pb.Value}",
-        ChannelPressureEvent cp => $"Pressure {cp.Pressure}",
-        PolyPressureEvent pp => $"Key {pp.NoteNumber} Pressure {pp.Pressure}",
-        MetaEvent meta => GetMetaSummary(meta),
-        SysExEvent sysex => $"[{sysex.Data.Length} bytes] Mfr: {sysex.ManufacturerId:X2}",
-        _ => ""
-    };
+    public string Summary => _summary;
 
     /// <summary>Underlying event for detail view.</summary>
     public MidiEventBase Event => _event;
 
     /// <summary>Raw bytes as hex string.</summary>
-    public string RawBytesHex => _event.RawBytes.Length > 0
-        ? string.Join(" ", _event.RawBytes.Select(b => b.ToString("X2", CultureInfo.InvariantCulture)))
-        : "";
+    public string RawBytesHex => _rawBytesHex;
 
     /// <summary>Whether this is a meta event.</summary>
-    public bool IsMeta => _event is MetaEvent;
+    public bool IsMeta => _isMeta;
 
     /// <summary>Whether this is a SysEx event.</summary>
-    public bool IsSysExEvent => _event is SysExEvent;
+    public bool IsSysExEvent => _isSysExEvent;
 
     /// <summary>Whether this is a channel event.</summary>
-    public bool IsChannel => _event is ChannelEventBase;
+    public bool IsChannel => _isChannel;
 
     /// <summary>Category for filtering.</summary>
-    public EventCategory Category => _event switch
-    {
-        NoteOnEvent or NoteOffEvent => EventCategory.Note,
-        ControlChangeEvent => EventCategory.ControlChange,
-        ProgramChangeEvent => EventCategory.ProgramChange,
-        PitchBendEvent or ChannelPressureEvent or PolyPressureEvent => EventCategory.Other,
-        MetaEvent => EventCategory.Meta,
-        SysExEvent => EventCategory.SysExCategory,
-        _ => EventCategory.Other
-    };
+    public EventCategory Category => _category;
 
     /// <summary>Whether this event is at the current playback position.</summary>
     public bool IsCurrent
@@ -130,6 +107,78 @@ public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
         var note = noteNames[noteNumber % 12];
         return $"{note}{octave}";
     }
+
+    private static string BuildEventType(MidiEventBase evt) => evt switch
+    {
+        NoteOnEvent => "Note On",
+        NoteOffEvent => "Note Off",
+        ControlChangeEvent => "Control Change",
+        ProgramChangeEvent => "Program Change",
+        PitchBendEvent => "Pitch Bend",
+        ChannelPressureEvent => "Channel Pressure",
+        PolyPressureEvent => "Poly Pressure",
+        MetaEvent meta => $"Meta: {meta.TypeName}",
+        SysExEvent => "SysEx",
+        _ => "Unknown"
+    };
+
+    private static string BuildChannel(MidiEventBase evt) => evt switch
+    {
+        ChannelEventBase ch => (ch.Channel + 1).ToString(CultureInfo.InvariantCulture),
+        _ => ""
+    };
+
+    private static string BuildSummary(MidiEventBase evt) => evt switch
+    {
+        NoteOnEvent n => $"Note {NoteNumberToName(n.NoteNumber)} Vel {n.Velocity}",
+        NoteOffEvent n => $"Note {NoteNumberToName(n.NoteNumber)} Vel {n.Velocity}",
+        ControlChangeEvent cc => $"CC{cc.ControllerNumber} = {cc.Value}",
+        ProgramChangeEvent pc => $"Program {pc.ProgramNumber}",
+        PitchBendEvent pb => $"Bend {pb.Value}",
+        ChannelPressureEvent cp => $"Pressure {cp.Pressure}",
+        PolyPressureEvent pp => $"Key {pp.NoteNumber} Pressure {pp.Pressure}",
+        MetaEvent meta => GetMetaSummary(meta),
+        SysExEvent sysex => $"[{sysex.Data.Length} bytes] Mfr: {FormatHexBytes(sysex.ManufacturerId)}",
+        _ => ""
+    };
+
+    private static EventCategory BuildCategory(MidiEventBase evt) => evt switch
+    {
+        NoteOnEvent or NoteOffEvent => EventCategory.Note,
+        ControlChangeEvent => EventCategory.ControlChange,
+        ProgramChangeEvent => EventCategory.ProgramChange,
+        PitchBendEvent or ChannelPressureEvent or PolyPressureEvent => EventCategory.Other,
+        MetaEvent => EventCategory.Meta,
+        SysExEvent => EventCategory.SysExCategory,
+        _ => EventCategory.Other
+    };
+
+    private static string BuildRawBytesHex(IReadOnlyList<byte> rawBytes)
+    {
+        if (rawBytes.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var chars = new char[(rawBytes.Count * 3) - 1];
+        var position = 0;
+
+        for (var i = 0; i < rawBytes.Count; i++)
+        {
+            var hex = rawBytes[i].ToString("X2", CultureInfo.InvariantCulture);
+            chars[position++] = hex[0];
+            chars[position++] = hex[1];
+
+            if (i < rawBytes.Count - 1)
+            {
+                chars[position++] = ' ';
+            }
+        }
+
+        return new string(chars);
+    }
+
+    private static string FormatHexBytes(IReadOnlyList<byte> bytes) => BuildRawBytesHex(bytes);
 
     private static string GetMetaSummary(MetaEvent meta)
     {

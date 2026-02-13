@@ -68,7 +68,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private CancellationTokenSource? _playlistParseCts;
     private int _playlistParseInFlight;
     private readonly Dictionary<string, PlaylistMetadataCache> _playlistMetadataCache = new(StringComparer.OrdinalIgnoreCase);
-    private DateTime _lastChannelStateUpdate;
+    private int _channelStateDirtyFlag;
     private InstrumentOption? _selectedDefaultInstrument;
     private bool _hasLyrics;
     private int _currentLyricIndex = -1;
@@ -627,6 +627,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 _engine.PositionChanged -= OnPositionChanged;
                 _engine.StateChanged -= OnStateChanged;
+                _engine.EventDispatched -= OnEventDispatched;
                 _engine.NoteActivityChanged -= OnNoteActivityChanged;
             }
             _engine = null;
@@ -657,6 +658,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             });
             _engine.PositionChanged += OnPositionChanged;
             _engine.StateChanged += OnStateChanged;
+            _engine.EventDispatched += OnEventDispatched;
             _engine.NoteActivityChanged += OnNoteActivityChanged;
             UpdateEngineLoopMode();
 
@@ -818,6 +820,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             oldEngine.PositionChanged -= OnPositionChanged;
             oldEngine.StateChanged -= OnStateChanged;
+            oldEngine.EventDispatched -= OnEventDispatched;
             oldEngine.NoteActivityChanged -= OnNoteActivityChanged;
         }
 
@@ -1388,6 +1391,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
 
         _engine.SetTrackActivityMask(mask);
+
+        if (_snapshotBuilder != null)
+        {
+            _channelStates = _snapshotBuilder.RebuildStateAtTick(_engine.CurrentTick, mask);
+            ApplyDefaultInstrumentToChannelStates();
+            OnPropertyChanged(nameof(ChannelStates));
+        }
     }
 
     private void LoadLyricsFromEvents(IReadOnlyList<MidiEventBase> events)
@@ -1599,19 +1609,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             // Update diagnostics current tick for auto-scroll
             Diagnostics.CurrentTick = e.Tick;
 
-            // Update current tempo from tempo map
-            if (_fileData?.TempoMap != null)
-            {
-                var tempo = _fileData.TempoMap.GetTempoAtTime(new Melanchall.DryWetMidi.Interaction.MidiTimeSpan(e.Tick));
-                CurrentTempo = tempo.BeatsPerMinute;
-            }
+            // Tempo is precomputed by the engine and included in position updates.
+            CurrentTempo = e.TempoBpm;
 
-            // Throttle channel state updates to once per second during playback
-            // (instrument names only change on program change events)
-            var now = DateTime.UtcNow;
-            if (_snapshotBuilder != null && (now - _lastChannelStateUpdate).TotalMilliseconds > 1000)
+            // Rebuild channel state only when relevant state events were dispatched.
+            if (_snapshotBuilder != null && Interlocked.Exchange(ref _channelStateDirtyFlag, 0) == 1)
             {
-                _lastChannelStateUpdate = now;
                 _channelStates = _snapshotBuilder.RebuildStateAtTick(e.Tick);
                 ApplyDefaultInstrumentToChannelStates();
                 OnPropertyChanged(nameof(ChannelStates));
@@ -1708,6 +1711,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         });
     }
 
+    private void OnEventDispatched(object? sender, EventDispatchedEventArgs e)
+    {
+        if (_disposed) return;
+
+        if (e.Event is ControlChangeEvent or ProgramChangeEvent)
+        {
+            Interlocked.Exchange(ref _channelStateDirtyFlag, 1);
+        }
+    }
+
     #endregion
 
     #region INotifyPropertyChanged
@@ -1741,6 +1754,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             _engine.PositionChanged -= OnPositionChanged;
             _engine.StateChanged -= OnStateChanged;
+            _engine.EventDispatched -= OnEventDispatched;
             _engine.NoteActivityChanged -= OnNoteActivityChanged;
         }
         PlaylistEntries.CollectionChanged -= OnPlaylistChanged;

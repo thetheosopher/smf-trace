@@ -184,25 +184,13 @@ public sealed class SequencerEngine : IDisposable
         }
 
         // Cancel and wait outside the lock to avoid deadlock
-        _playbackCts?.Cancel();
-        try
-        {
-            _playbackTask?.Wait(100);
-        }
-        catch (AggregateException)
-        {
-            // Expected on cancellation
-        }
+        CancelPlaybackAndWait();
 
         // Send AllNotesOff outside the lock to prevent blocking
         output?.AllNotesOff();
 
         lock (_lock)
         {
-            _playbackCts?.Dispose();
-            _playbackCts = null;
-            _playbackTask = null;
-
             ClearActiveNotes();
             SetState(PlaybackState.Paused);
         }
@@ -221,25 +209,13 @@ public sealed class SequencerEngine : IDisposable
         }
 
         // First cancel and wait outside the lock to avoid deadlock
-        _playbackCts?.Cancel();
-        try
-        {
-            _playbackTask?.Wait(100);
-        }
-        catch (AggregateException)
-        {
-            // Expected on cancellation
-        }
+        CancelPlaybackAndWait();
 
         // Send AllNotesOff outside the lock to prevent blocking
         output?.AllNotesOff();
 
         lock (_lock)
         {
-            _playbackCts?.Dispose();
-            _playbackCts = null;
-            _playbackTask = null;
-
             ClearActiveNotes();
             _currentEventIndex = 0;
             _currentTick = 0;
@@ -264,26 +240,11 @@ public sealed class SequencerEngine : IDisposable
         if (wasPlaying)
         {
             // Cancel and wait outside the lock to avoid deadlock
-            _playbackCts?.Cancel();
-            try
-            {
-                _playbackTask?.Wait(100);
-            }
-            catch (AggregateException)
-            {
-                // Expected on cancellation
-            }
+            CancelPlaybackAndWait();
         }
 
         lock (_lock)
         {
-            if (wasPlaying)
-            {
-                _playbackCts?.Dispose();
-                _playbackCts = null;
-                _playbackTask = null;
-            }
-
             SetState(PlaybackState.Scrubbing);
         }
     }
@@ -409,21 +370,45 @@ public sealed class SequencerEngine : IDisposable
         _playbackTask = Task.Run(() => PlaybackLoop(token), token);
     }
 
-    private void StopPlaybackLoop()
+    private void CancelPlaybackAndWait(int timeoutMs = 100)
     {
-        _playbackCts?.Cancel();
+        CancellationTokenSource? cts;
+        Task? task;
+
+        lock (_lock)
+        {
+            cts = _playbackCts;
+            task = _playbackTask;
+        }
+
+        cts?.Cancel();
         try
         {
-            _playbackTask?.Wait(100);
+            task?.Wait(timeoutMs);
         }
         catch (AggregateException)
         {
             // Expected on cancellation
         }
 
-        _playbackCts?.Dispose();
-        _playbackCts = null;
-        _playbackTask = null;
+        lock (_lock)
+        {
+            if (ReferenceEquals(_playbackCts, cts))
+            {
+                _playbackCts?.Dispose();
+                _playbackCts = null;
+            }
+
+            if (ReferenceEquals(_playbackTask, task))
+            {
+                _playbackTask = null;
+            }
+        }
+    }
+
+    private void StopPlaybackLoop()
+    {
+        CancelPlaybackAndWait();
     }
 
     private void PlaybackLoop(CancellationToken token)
@@ -499,15 +484,7 @@ public sealed class SequencerEngine : IDisposable
                         : timeUntilEvent;
 
                     // Sleep for a short time, but wake up for position updates
-                    var sleepTime = Math.Min(realTimeUntilEvent.TotalMilliseconds, PositionUpdateInterval.TotalMilliseconds);
-                    if (sleepTime > 1)
-                    {
-                        Thread.Sleep((int)sleepTime);
-                    }
-                    else
-                    {
-                        Thread.SpinWait(10);
-                    }
+                    WaitForNextSlice(realTimeUntilEvent, PositionUpdateInterval);
 
                     // Update current time
                     lock (_lock)
@@ -547,9 +524,13 @@ public sealed class SequencerEngine : IDisposable
                 }
             }
 
-            // Always raise position update after dispatching event
-            _lastPositionUpdate = stopwatch.Elapsed;
-            RaisePositionChanged();
+            // Raise after dispatch only when periodic cadence is due.
+            var elapsedAfterDispatch = stopwatch.Elapsed;
+            if (elapsedAfterDispatch - _lastPositionUpdate >= PositionUpdateInterval)
+            {
+                _lastPositionUpdate = elapsedAfterDispatch;
+                RaisePositionChanged();
+            }
         }
     }
 
@@ -569,6 +550,35 @@ public sealed class SequencerEngine : IDisposable
     {
         var ticks = (long)(elapsed.Ticks * speed);
         return ticks <= 0 ? TimeSpan.Zero : TimeSpan.FromTicks(ticks);
+    }
+
+    private static void WaitForNextSlice(TimeSpan realTimeUntilEvent, TimeSpan maxUpdateSlice)
+    {
+        var sliceMs = Math.Min(realTimeUntilEvent.TotalMilliseconds, maxUpdateSlice.TotalMilliseconds);
+
+        if (sliceMs >= 16.0)
+        {
+            // Leave margin to avoid overshooting due to scheduler granularity.
+            var coarseSleepMs = (int)Math.Max(1, Math.Floor(sliceMs - 2.0));
+            Thread.Sleep(coarseSleepMs);
+            return;
+        }
+
+        if (sliceMs >= 4.0)
+        {
+            Thread.Sleep(0);
+            Thread.SpinWait(100);
+            return;
+        }
+
+        if (sliceMs >= 1.0)
+        {
+            Thread.Yield();
+            Thread.SpinWait(80);
+            return;
+        }
+
+        Thread.SpinWait(120);
     }
 
     private double GetTempoAdjustedSpeed(long tick, double tempoAdjustmentBpm)
@@ -893,7 +903,7 @@ public sealed class SequencerEngine : IDisposable
     private void RaisePositionChanged()
     {
         if (_disposing) return;
-        PositionChanged?.Invoke(this, new PositionChangedEventArgs(_currentTick, _currentTime));
+        PositionChanged?.Invoke(this, new PositionChangedEventArgs(_currentTick, _currentTime, GetTempoAtTick(_currentTick)));
     }
 
     private bool IsTrackActive(int trackIndex)
@@ -943,6 +953,23 @@ public sealed class SequencerEngine : IDisposable
     {
         _disposing = true;
         StopPlaybackLoop();
+
+        ISequencerOutput? output;
+        lock (_lock)
+        {
+            output = _output;
+        }
+
+        output?.AllNotesOff();
+
+        lock (_lock)
+        {
+            ClearActiveNotes();
+            _currentEventIndex = 0;
+            _currentTick = 0;
+            _currentTime = TimeSpan.Zero;
+            _state = PlaybackState.Stopped;
+        }
     }
 }
 
@@ -953,11 +980,13 @@ public sealed class PositionChangedEventArgs : EventArgs
 {
     public long Tick { get; }
     public TimeSpan Time { get; }
+    public double TempoBpm { get; }
 
-    public PositionChangedEventArgs(long tick, TimeSpan time)
+    public PositionChangedEventArgs(long tick, TimeSpan time, double tempoBpm)
     {
         Tick = tick;
         Time = time;
+        TempoBpm = tempoBpm;
     }
 }
 

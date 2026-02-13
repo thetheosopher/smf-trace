@@ -204,4 +204,26 @@ public class DiagnosticsViewModelTests
         Assert.Contains("Note On", detail);
         Assert.Contains("Tick: 0", detail);
     }
+
+    [Fact]
+    public void FilteringReusesExistingEventViewModels()
+    {
+        // Arrange
+        var vm = new DiagnosticsViewModel();
+        var events = new List<MidiEventBase>
+        {
+            CreateNoteOn(0, 0),
+            CreateCC(100, 0, 7, 100)
+        };
+        vm.LoadEvents(events);
+        var firstReference = vm.FilteredEvents[0];
+
+        // Act
+        vm.ShowNotes = false;
+        vm.ShowNotes = true;
+
+        // Assert
+        Assert.Equal(2, vm.FilteredEvents.Count);
+        Assert.Same(firstReference, vm.FilteredEvents[0]);
+    }
 }

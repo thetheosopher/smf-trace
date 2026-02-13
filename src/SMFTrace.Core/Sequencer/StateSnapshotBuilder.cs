@@ -83,7 +83,10 @@ public sealed class StateCheckpoint
 /// </summary>
 public sealed class StateSnapshotBuilder
 {
+    private readonly record struct StateEvent(long Tick, int TrackIndex, MidiEventBase Event);
+
     private readonly IReadOnlyList<MidiEventBase> _events;
+    private readonly List<StateEvent> _stateEvents;
     private readonly List<StateCheckpoint> _checkpoints = [];
     private readonly MutableChannelState[] _currentState;
 
@@ -98,6 +101,7 @@ public sealed class StateSnapshotBuilder
     public StateSnapshotBuilder(IReadOnlyList<MidiEventBase> events, int checkpointInterval = DefaultCheckpointInterval)
     {
         _events = events;
+        _stateEvents = BuildStateEvents(events);
         _currentState = new MutableChannelState[16];
         for (var i = 0; i < 16; i++)
         {
@@ -138,16 +142,16 @@ public sealed class StateSnapshotBuilder
         // Find the starting event index
         var startIndex = checkpoint?.EventIndex ?? 0;
 
-        // Replay events from checkpoint to target tick
-        for (var i = startIndex; i < _events.Count; i++)
+        // Replay state-relevant events from checkpoint to target tick
+        for (var i = startIndex; i < _stateEvents.Count; i++)
         {
-            var evt = _events[i];
-            if (evt.AbsoluteTick > targetTick)
+            var stateEvent = _stateEvents[i];
+            if (stateEvent.Tick > targetTick)
             {
                 break;
             }
 
-            ApplyEventToState(evt);
+            ApplyEventToState(stateEvent.Event);
         }
 
         // Return immutable snapshots
@@ -173,26 +177,42 @@ public sealed class StateSnapshotBuilder
             return RebuildStateAtTick(targetTick);
         }
 
+        if (AreNoTracksActive(activeTracks))
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                _currentState[i].Reset();
+            }
+
+            var defaults = new ChannelState[16];
+            for (var i = 0; i < 16; i++)
+            {
+                defaults[i] = _currentState[i].ToImmutable();
+            }
+
+            return defaults;
+        }
+
         // Reset to defaults for a full rebuild with filtering.
         for (var i = 0; i < 16; i++)
         {
             _currentState[i].Reset();
         }
 
-        for (var i = 0; i < _events.Count; i++)
+        for (var i = 0; i < _stateEvents.Count; i++)
         {
-            var evt = _events[i];
-            if (evt.AbsoluteTick > targetTick)
+            var stateEvent = _stateEvents[i];
+            if (stateEvent.Tick > targetTick)
             {
                 break;
             }
 
-            if (!IsTrackActive(evt.TrackIndex, activeTracks))
+            if (!IsTrackActive(stateEvent.TrackIndex, activeTracks))
             {
                 continue;
             }
 
-            ApplyEventToState(evt);
+            ApplyEventToState(stateEvent.Event);
         }
 
         var result = new ChannelState[16];
@@ -211,15 +231,28 @@ public sealed class StateSnapshotBuilder
     /// <returns>The event index where playback should resume.</returns>
     public int GetResumeEventIndex(long targetTick)
     {
-        for (var i = 0; i < _events.Count; i++)
+        if (_events.Count == 0)
         {
-            if (_events[i].AbsoluteTick >= targetTick)
+            return 0;
+        }
+
+        var low = 0;
+        var high = _events.Count;
+
+        while (low < high)
+        {
+            var mid = low + ((high - low) / 2);
+            if (_events[mid].AbsoluteTick < targetTick)
             {
-                return i;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid;
             }
         }
 
-        return _events.Count;
+        return low;
     }
 
     private void BuildCheckpoints(int interval)
@@ -234,19 +267,24 @@ public sealed class StateSnapshotBuilder
         _checkpoints.Add(CreateCheckpoint(0, 0));
 
         long nextCheckpointTick = interval;
+        var stateEventIndex = 0;
 
-        for (var eventIndex = 0; eventIndex < _events.Count; eventIndex++)
+        for (var i = 0; i < _events.Count; i++)
         {
-            var evt = _events[eventIndex];
+            var evt = _events[i];
 
             // Create checkpoint if we've passed the threshold
             while (evt.AbsoluteTick >= nextCheckpointTick)
             {
-                _checkpoints.Add(CreateCheckpoint(nextCheckpointTick, eventIndex));
+                _checkpoints.Add(CreateCheckpoint(nextCheckpointTick, stateEventIndex));
                 nextCheckpointTick += interval;
             }
 
-            ApplyEventToState(evt);
+            if (evt is ControlChangeEvent or ProgramChangeEvent)
+            {
+                ApplyEventToState(evt);
+                stateEventIndex++;
+            }
         }
     }
 
@@ -268,21 +306,46 @@ public sealed class StateSnapshotBuilder
 
     private StateCheckpoint? FindNearestCheckpoint(long tick)
     {
-        StateCheckpoint? best = null;
-
-        foreach (var checkpoint in _checkpoints)
+        if (_checkpoints.Count == 0)
         {
-            if (checkpoint.Tick <= tick)
+            return null;
+        }
+
+        var low = 0;
+        var high = _checkpoints.Count - 1;
+        var best = -1;
+
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            var checkpointTick = _checkpoints[mid].Tick;
+            if (checkpointTick <= tick)
             {
-                best = checkpoint;
+                best = mid;
+                low = mid + 1;
             }
             else
             {
-                break; // Checkpoints are ordered by tick
+                high = mid - 1;
             }
         }
 
-        return best;
+        return best >= 0 ? _checkpoints[best] : null;
+    }
+
+    private static List<StateEvent> BuildStateEvents(IReadOnlyList<MidiEventBase> events)
+    {
+        var stateEvents = new List<StateEvent>();
+        for (var i = 0; i < events.Count; i++)
+        {
+            var evt = events[i];
+            if (evt is ControlChangeEvent or ProgramChangeEvent)
+            {
+                stateEvents.Add(new StateEvent(evt.AbsoluteTick, evt.TrackIndex, evt));
+            }
+        }
+
+        return stateEvents;
     }
 
     private void ApplyEventToState(MidiEventBase evt)
@@ -323,6 +386,19 @@ public sealed class StateSnapshotBuilder
         for (var i = 0; i < activeTracks.Length; i++)
         {
             if (!activeTracks[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool AreNoTracksActive(bool[] activeTracks)
+    {
+        for (var i = 0; i < activeTracks.Length; i++)
+        {
+            if (activeTracks[i])
             {
                 return false;
             }

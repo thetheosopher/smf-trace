@@ -14,6 +14,7 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
 #pragma warning restore CA1711
 {
     private IReadOnlyList<MidiEventBase> _allEvents = [];
+    private List<DiagnosticEventViewModel> _allEventViewModels = [];
     private ObservableCollection<DiagnosticEventViewModel> _filteredEvents = [];
     private DiagnosticEventViewModel? _selectedEvent;
     private long _currentTick;
@@ -172,7 +173,7 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
 
                 case SysExEvent sysex:
                     lines.Add($"Length: {sysex.Data.Length} bytes");
-                    lines.Add($"Manufacturer ID: 0x{sysex.ManufacturerId:X2}");
+                    lines.Add($"Manufacturer ID: {FormatHexBytes(sysex.ManufacturerId)}");
                     break;
             }
 
@@ -194,73 +195,15 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
     public void LoadEvents(IReadOnlyList<MidiEventBase> events)
     {
         _allEvents = events;
+        _allEventViewModels = BuildEventViewModels(events);
         ApplyFilters();
     }
 
     public async Task LoadEventsAsync(IReadOnlyList<MidiEventBase> events)
     {
         _allEvents = events;
-
-        var showNotes = _showNotes;
-        var showControlChanges = _showControlChanges;
-        var showProgramChanges = _showProgramChanges;
-        var showMeta = _showMeta;
-        var showSysEx = _showSysEx;
-        var showOther = _showOther;
-        var metaOnlyMode = _metaOnlyMode;
-        var searchText = _searchText;
-        var searchLower = string.IsNullOrWhiteSpace(searchText) ? string.Empty : searchText.ToLowerInvariant();
-
-        var filtered = await Task.Run(() =>
-        {
-            var list = new List<DiagnosticEventViewModel>();
-            var index = 0;
-
-            foreach (var evt in events)
-            {
-                var vm = new DiagnosticEventViewModel(evt, index++);
-
-                if (metaOnlyMode && !vm.IsMeta)
-                {
-                    continue;
-                }
-
-                var passesCategory = vm.Category switch
-                {
-                    EventCategory.Note => showNotes,
-                    EventCategory.ControlChange => showControlChanges,
-                    EventCategory.ProgramChange => showProgramChanges,
-                    EventCategory.Meta => showMeta,
-                    EventCategory.SysExCategory => showSysEx,
-                    EventCategory.Other => showOther,
-                    _ => true
-                };
-
-                if (!passesCategory)
-                {
-                    continue;
-                }
-
-                if (!string.IsNullOrEmpty(searchLower))
-                {
-                    var matchesSearch =
-                        vm.EventType.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
-                        vm.Summary.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
-                        vm.RawBytesHex.Contains(searchLower, StringComparison.OrdinalIgnoreCase);
-
-                    if (!matchesSearch)
-                    {
-                        continue;
-                    }
-                }
-
-                list.Add(vm);
-            }
-
-            return list;
-        });
-
-        FilteredEvents = new ObservableCollection<DiagnosticEventViewModel>(filtered);
+        _allEventViewModels = await Task.Run(() => BuildEventViewModels(events));
+        ApplyFilters();
     }
 
     /// <summary>
@@ -295,14 +238,15 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
 
     private void ApplyFilters()
     {
+        var searchLower = string.IsNullOrWhiteSpace(_searchText) ? string.Empty : _searchText.ToLowerInvariant();
         var filtered = new List<DiagnosticEventViewModel>();
-        var index = 0;
 
-        foreach (var evt in _allEvents)
+        foreach (var vm in _allEventViewModels)
         {
-            var vm = new DiagnosticEventViewModel(evt, index++);
-
-            if (!PassesFilter(vm)) continue;
+            if (!PassesFilter(vm, searchLower))
+            {
+                continue;
+            }
 
             filtered.Add(vm);
         }
@@ -310,7 +254,18 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
         FilteredEvents = new ObservableCollection<DiagnosticEventViewModel>(filtered);
     }
 
-    private bool PassesFilter(DiagnosticEventViewModel vm)
+    private static List<DiagnosticEventViewModel> BuildEventViewModels(IReadOnlyList<MidiEventBase> events)
+    {
+        var list = new List<DiagnosticEventViewModel>(events.Count);
+        for (var i = 0; i < events.Count; i++)
+        {
+            list.Add(new DiagnosticEventViewModel(events[i], i));
+        }
+
+        return list;
+    }
+
+    private bool PassesFilter(DiagnosticEventViewModel vm, string searchLower)
     {
         // Meta-only mode
         if (_metaOnlyMode && !vm.IsMeta) return false;
@@ -330,9 +285,8 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
         if (!passesCategory) return false;
 
         // Text search
-        if (!string.IsNullOrWhiteSpace(_searchText))
+        if (!string.IsNullOrEmpty(searchLower))
         {
-            var searchLower = _searchText.ToLowerInvariant();
             var matchesSearch =
                 vm.EventType.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
                 vm.Summary.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
@@ -372,6 +326,30 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
         123 => "All Notes Off",
         _ => $"CC {cc}"
     };
+
+    private static string FormatHexBytes(byte[] bytes)
+    {
+        if (bytes.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var chars = new char[(bytes.Length * 3) - 1];
+        var position = 0;
+
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            var hex = bytes[i].ToString("X2", System.Globalization.CultureInfo.InvariantCulture);
+            chars[position++] = hex[0];
+            chars[position++] = hex[1];
+            if (i < bytes.Length - 1)
+            {
+                chars[position++] = ' ';
+            }
+        }
+
+        return new string(chars);
+    }
 
     #endregion
 

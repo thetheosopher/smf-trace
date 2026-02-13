@@ -64,6 +64,29 @@ public class StateSnapshotBuilderTests
             Velocity = 100
         };
 
+    private static ProgramChangeEvent CreateProgramChangeOnTrack(long tick, int trackIndex, byte channel, byte program) =>
+        new()
+        {
+            AbsoluteTick = tick,
+            TrackIndex = trackIndex,
+            OriginalIndex = 0,
+            RawBytes = [],
+            Channel = channel,
+            ProgramNumber = program
+        };
+
+    private static ControlChangeEvent CreateCCOnTrack(long tick, int trackIndex, byte channel, byte cc, byte value) =>
+        new()
+        {
+            AbsoluteTick = tick,
+            TrackIndex = trackIndex,
+            OriginalIndex = 0,
+            RawBytes = [],
+            Channel = channel,
+            ControllerNumber = cc,
+            Value = value
+        };
+
     [Fact]
     public void RebuildStateAtTickReturnsDefaultsWhenNoEvents()
     {
@@ -234,5 +257,53 @@ public class StateSnapshotBuilderTests
 
         Assert.False(states[2].HasProgramChange);
         Assert.Equal(80, states[2].Controllers[7]);
+    }
+
+    [Fact]
+    public void GetResumeEventIndexHandlesLargeInputsEfficientlyAndCorrectly()
+    {
+        // Arrange
+        var events = new List<MidiEventBase>();
+        for (var i = 0; i < 5000; i++)
+        {
+            events.Add(CreateNoteOn(i * 10L, 0, 60));
+        }
+
+        var builder = new StateSnapshotBuilder(events);
+
+        // Act / Assert
+        Assert.Equal(0, builder.GetResumeEventIndex(-1));
+        Assert.Equal(0, builder.GetResumeEventIndex(0));
+        Assert.Equal(2500, builder.GetResumeEventIndex(25000));
+        Assert.Equal(5000, builder.GetResumeEventIndex(50001));
+    }
+
+    [Fact]
+    public void RebuildStateAtTickWithTrackMaskIgnoresNonStateEventsAndInactiveTracks()
+    {
+        // Arrange
+        var events = new List<MidiEventBase>
+        {
+            CreateProgramChangeOnTrack(0, 0, 0, 10),
+            CreateNoteOn(1, 0, 60),
+            CreateCCOnTrack(10, 0, 0, 7, 64),
+            CreateProgramChangeOnTrack(20, 1, 0, 33),
+            CreateNoteOn(21, 0, 61),
+            CreateCCOnTrack(30, 1, 0, 7, 127),
+            CreateNoteOn(31, 0, 62),
+            CreateProgramChangeOnTrack(40, 0, 0, 42)
+        };
+
+        var builder = new StateSnapshotBuilder(events);
+        var activeTracks = new[] { true, false };
+
+        // Act
+        var states = builder.RebuildStateAtTick(35, activeTracks);
+
+        // Assert
+        Assert.True(states[0].HasProgramChange);
+        Assert.Equal(10, states[0].Program);
+        Assert.True(states[0].Controllers.TryGetValue(7, out var value));
+        Assert.Equal(64, value);
     }
 }

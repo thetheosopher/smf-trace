@@ -334,4 +334,46 @@ public class SequencerEngineTests
         // Assert
         Assert.Empty(output.SysExMessages);
     }
+
+    [Fact]
+    public void DisposeSendsAllNotesOffWhenOutputIsSet()
+    {
+        // Arrange
+        var fileData = CreateTestFileData();
+        var output = new MockSequencerOutput();
+        var engine = new SequencerEngine(fileData);
+        engine.SetOutput(output);
+
+        // Act
+        engine.Play();
+        Thread.Sleep(50);
+        engine.Dispose();
+
+        // Assert
+        Assert.True(output.AllNotesOffCount >= 1, "Dispose should send AllNotesOff when output is configured.");
+    }
+
+    [Fact]
+    public void RapidPauseStopBeginScrubTransitionsDoNotThrow()
+    {
+        // Arrange
+        var fileData = CreateTestFileData();
+        using var engine = new SequencerEngine(fileData);
+        var output = new MockSequencerOutput();
+        engine.SetOutput(output);
+
+        // Act / Assert
+        for (var i = 0; i < 10; i++)
+        {
+            engine.Play();
+            Thread.Sleep(10);
+            engine.Pause();
+            engine.BeginScrub();
+            engine.Scrub(TimeSpan.FromMilliseconds(100));
+            engine.EndScrub();
+            engine.Stop();
+        }
+
+        Assert.Equal(PlaybackState.Stopped, engine.State);
+    }
 }
