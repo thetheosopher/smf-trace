@@ -553,8 +553,12 @@ public class PianoRollPanel : FrameworkElement
     private static readonly Brush PianoWhiteBrushLight;
     private static readonly Brush PianoBlackBrush;
     private static readonly Brush PianoBlackBrushLight;
+    private static readonly Brush PianoBlackHighlightBrush;
+    private static readonly Brush PianoBlackHighlightBrushLight;
     private static readonly Brush PianoActiveFillBrush;
     private static readonly Brush PianoActiveFillBrushLight;
+    private static readonly Brush PianoActiveBlackFillBrush;
+    private static readonly Brush PianoActiveBlackFillBrushLight;
     private static readonly Brush PianoActiveGlowBrush;
     private static readonly Brush PianoActiveGlowBrushLight;
     private static readonly Pen PianoActiveOuterPen;
@@ -563,6 +567,8 @@ public class PianoRollPanel : FrameworkElement
     private static readonly Pen PianoActiveInnerPenLight;
     private static readonly Pen PianoKeyOutlinePen;
     private static readonly Pen PianoKeyOutlinePenLight;
+    private static readonly Pen PianoWhiteKeySeparatorPen;
+    private static readonly Pen PianoWhiteKeySeparatorPenLight;
     private static readonly Typeface LabelTypeface;
     private static readonly Typeface LyricsTypeface;
     private static readonly Brush LyricsLaneBrush;
@@ -627,40 +633,55 @@ public class PianoRollPanel : FrameworkElement
         LaneHeaderBrushLight = new SolidColorBrush(Color.FromRgb(226, 232, 243));
         LaneHeaderBrushLight.Freeze();
 
-        PianoWhiteBrush = new SolidColorBrush(Color.FromRgb(235, 235, 235));
+        PianoWhiteBrush = new SolidColorBrush(Color.FromRgb(232, 232, 232));
         PianoWhiteBrush.Freeze();
-        PianoWhiteBrushLight = new SolidColorBrush(Color.FromRgb(253, 254, 255));
+        PianoWhiteBrushLight = new SolidColorBrush(Color.FromRgb(250, 251, 253));
         PianoWhiteBrushLight.Freeze();
 
-        PianoBlackBrush = new SolidColorBrush(Color.FromRgb(35, 35, 35));
+        PianoBlackBrush = new SolidColorBrush(Color.FromRgb(28, 28, 30));
         PianoBlackBrush.Freeze();
-        PianoBlackBrushLight = new SolidColorBrush(Color.FromRgb(78, 86, 101));
+        PianoBlackBrushLight = new SolidColorBrush(Color.FromRgb(58, 62, 72));
         PianoBlackBrushLight.Freeze();
 
-        PianoActiveFillBrush = new SolidColorBrush(Color.FromArgb(255, 213, 94, 0));
+        PianoBlackHighlightBrush = new SolidColorBrush(Color.FromRgb(60, 60, 64));
+        PianoBlackHighlightBrush.Freeze();
+        PianoBlackHighlightBrushLight = new SolidColorBrush(Color.FromRgb(88, 94, 108));
+        PianoBlackHighlightBrushLight.Freeze();
+
+        PianoActiveFillBrush = new SolidColorBrush(Color.FromArgb(255, 230, 126, 34));
         PianoActiveFillBrush.Freeze();
-        PianoActiveFillBrushLight = new SolidColorBrush(Color.FromArgb(255, 198, 88, 18));
+        PianoActiveFillBrushLight = new SolidColorBrush(Color.FromArgb(255, 210, 105, 30));
         PianoActiveFillBrushLight.Freeze();
 
-        PianoActiveGlowBrush = new SolidColorBrush(Color.FromArgb(255, 213, 94, 0));
+        PianoActiveBlackFillBrush = new SolidColorBrush(Color.FromArgb(255, 211, 84, 0));
+        PianoActiveBlackFillBrush.Freeze();
+        PianoActiveBlackFillBrushLight = new SolidColorBrush(Color.FromArgb(255, 192, 75, 10));
+        PianoActiveBlackFillBrushLight.Freeze();
+
+        PianoActiveGlowBrush = new SolidColorBrush(Color.FromArgb(100, 255, 165, 50));
         PianoActiveGlowBrush.Freeze();
-        PianoActiveGlowBrushLight = new SolidColorBrush(Color.FromArgb(210, 198, 88, 18));
+        PianoActiveGlowBrushLight = new SolidColorBrush(Color.FromArgb(80, 230, 140, 40));
         PianoActiveGlowBrushLight.Freeze();
 
-        PianoActiveOuterPen = new Pen(new SolidColorBrush(Color.FromArgb(224, 255, 255, 255)), 2);
+        PianoActiveOuterPen = new Pen(new SolidColorBrush(Color.FromArgb(180, 255, 200, 80)), 1.5);
         PianoActiveOuterPen.Freeze();
-        PianoActiveOuterPenLight = new Pen(new SolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 2);
+        PianoActiveOuterPenLight = new Pen(new SolidColorBrush(Color.FromArgb(160, 255, 180, 60)), 1.5);
         PianoActiveOuterPenLight.Freeze();
 
-        PianoActiveInnerPen = new Pen(new SolidColorBrush(Color.FromArgb(166, 0, 0, 0)), 2);
+        PianoActiveInnerPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 160, 70, 0)), 1);
         PianoActiveInnerPen.Freeze();
-        PianoActiveInnerPenLight = new Pen(new SolidColorBrush(Color.FromArgb(170, 65, 46, 23)), 2);
+        PianoActiveInnerPenLight = new Pen(new SolidColorBrush(Color.FromArgb(130, 140, 60, 0)), 1);
         PianoActiveInnerPenLight.Freeze();
 
-        PianoKeyOutlinePen = new Pen(new SolidColorBrush(Color.FromArgb(60, 200, 200, 200)), 1);
+        PianoKeyOutlinePen = new Pen(new SolidColorBrush(Color.FromArgb(50, 180, 180, 180)), 0.5);
         PianoKeyOutlinePen.Freeze();
-        PianoKeyOutlinePenLight = new Pen(new SolidColorBrush(Color.FromArgb(90, 143, 154, 170)), 1);
+        PianoKeyOutlinePenLight = new Pen(new SolidColorBrush(Color.FromArgb(70, 140, 150, 165)), 0.5);
         PianoKeyOutlinePenLight.Freeze();
+
+        PianoWhiteKeySeparatorPen = new Pen(new SolidColorBrush(Color.FromArgb(80, 140, 140, 145)), 1);
+        PianoWhiteKeySeparatorPen.Freeze();
+        PianoWhiteKeySeparatorPenLight = new Pen(new SolidColorBrush(Color.FromArgb(100, 160, 170, 185)), 1);
+        PianoWhiteKeySeparatorPenLight.Freeze();
 
         LabelTypeface = new Typeface("Segoe UI");
 
@@ -750,13 +771,16 @@ public class PianoRollPanel : FrameworkElement
     private Brush ThemedLaneBackgroundBrush => IsDarkTheme ? LaneBackgroundBrush : LaneBackgroundBrushLight;
     private Brush ThemedLaneAlternateBrush => IsDarkTheme ? LaneAlternateBrush : LaneAlternateBrushLight;
     private Brush ThemedLaneHeaderBrush => IsDarkTheme ? LaneHeaderBrush : LaneHeaderBrushLight;
-    private static Brush ThemedPianoWhiteBrush => PianoWhiteBrush;
-    private static Brush ThemedPianoBlackBrush => PianoBlackBrush;
-    private static Brush ThemedPianoActiveFillBrush => PianoActiveFillBrush;
-    private static Brush ThemedPianoActiveGlowBrush => PianoActiveGlowBrush;
-    private static Pen ThemedPianoActiveOuterPen => PianoActiveOuterPen;
-    private static Pen ThemedPianoActiveInnerPen => PianoActiveInnerPen;
-    private static Pen ThemedPianoKeyOutlinePen => PianoKeyOutlinePen;
+    private Brush ThemedPianoWhiteBrush => IsDarkTheme ? PianoWhiteBrush : PianoWhiteBrushLight;
+    private Brush ThemedPianoBlackBrush => IsDarkTheme ? PianoBlackBrush : PianoBlackBrushLight;
+    private Brush ThemedPianoBlackHighlightBrush => IsDarkTheme ? PianoBlackHighlightBrush : PianoBlackHighlightBrushLight;
+    private Brush ThemedPianoActiveFillBrush => IsDarkTheme ? PianoActiveFillBrush : PianoActiveFillBrushLight;
+    private Brush ThemedPianoActiveBlackFillBrush => IsDarkTheme ? PianoActiveBlackFillBrush : PianoActiveBlackFillBrushLight;
+    private Brush ThemedPianoActiveGlowBrush => IsDarkTheme ? PianoActiveGlowBrush : PianoActiveGlowBrushLight;
+    private Pen ThemedPianoActiveOuterPen => IsDarkTheme ? PianoActiveOuterPen : PianoActiveOuterPenLight;
+    private Pen ThemedPianoActiveInnerPen => IsDarkTheme ? PianoActiveInnerPen : PianoActiveInnerPenLight;
+    private Pen ThemedPianoKeyOutlinePen => IsDarkTheme ? PianoKeyOutlinePen : PianoKeyOutlinePenLight;
+    private Pen ThemedPianoWhiteKeySeparatorPen => IsDarkTheme ? PianoWhiteKeySeparatorPen : PianoWhiteKeySeparatorPenLight;
     private Pen ThemedGridPen => IsDarkTheme ? GridPen : GridPenLight;
     private Pen ThemedOctaveGridPen => IsDarkTheme ? OctaveGridPen : OctaveGridPenLight;
     private Brush ThemedLyricsLaneBrush => IsDarkTheme ? LyricsLaneBrush : LyricsLaneBrushLight;
@@ -2026,7 +2050,7 @@ public class PianoRollPanel : FrameworkElement
         lane.CachedInstrumentName = instrumentName;
     }
 
-    private static void RenderPianoKeysForLane(DrawingContext dc, LaneLayout lane, TimeSpan renderTime, double keyLeft)
+    private void RenderPianoKeysForLane(DrawingContext dc, LaneLayout lane, TimeSpan renderTime, double keyLeft)
     {
         var pitchCount = lane.PitchCount;
         if (pitchCount <= 0)
@@ -2036,9 +2060,7 @@ public class PianoRollPanel : FrameworkElement
 
         var rowHeight = lane.Height / pitchCount;
         var keyWidth = PianoRollSettings.PianoKeyWidth;
-        var blackKeyWidth = keyWidth * 0.6;
-        var blackKeyHeight = rowHeight * 0.6;
-        var blackKeyX = keyLeft;
+        var blackKeyWidth = keyWidth * 0.72;
 
         EnsureKeyboardDrawing(lane, keyLeft, keyWidth, rowHeight);
         if (lane.KeyboardDrawing != null)
@@ -2052,7 +2074,7 @@ public class PianoRollPanel : FrameworkElement
 
         var activeNotes = lane.LiveActiveNotes ?? lane.ActiveTimeline.ActiveNotes;
 
-        // Draw white key highlights
+        // Draw white key active highlights with notched shape (wrapping around black keys)
         for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
         {
             if (IsBlackKey(pitch) || !activeNotes[pitch])
@@ -2060,19 +2082,18 @@ public class PianoRollPanel : FrameworkElement
                 continue;
             }
 
-            var relPitch = pitch - lane.PitchLow;
-            var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
-            var rect = new Rect(keyLeft, y + 1, keyWidth, rowHeight - 2);
-            var inset = Math.Max(1, rowHeight * 0.12);
-            var glowRect = new Rect(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
-            var innerRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
-            dc.DrawRectangle(ThemedPianoActiveGlowBrush, null, glowRect);
-            dc.DrawRectangle(ThemedPianoActiveFillBrush, null, rect);
-            dc.DrawRectangle(null, ThemedPianoActiveOuterPen, rect);
-            dc.DrawRectangle(null, ThemedPianoActiveInnerPen, innerRect);
+            var geo = CreateWhiteKeyHighlightGeometry(
+                pitch, lane.PitchLow, lane.PitchHigh,
+                lane.YOffset, lane.Height, rowHeight,
+                keyLeft, keyWidth, blackKeyWidth);
+
+            // Soft outer glow via slightly thicker pen
+            dc.DrawGeometry(ThemedPianoActiveGlowBrush, null, geo);
+            // Main fill + edge highlight
+            dc.DrawGeometry(ThemedPianoActiveFillBrush, ThemedPianoActiveOuterPen, geo);
         }
 
-        // Draw black key highlights
+        // Draw black key active highlights on top
         for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
         {
             if (!IsBlackKey(pitch) || !activeNotes[pitch])
@@ -2081,20 +2102,141 @@ public class PianoRollPanel : FrameworkElement
             }
 
             var relPitch = pitch - lane.PitchLow;
-            var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
+            var rowCenter = lane.YOffset + lane.Height - (relPitch + 0.5) * rowHeight;
+            var blackKeyHeight = rowHeight * 0.85;
             var rect = new Rect(
-                blackKeyX,
-                y + (rowHeight - blackKeyHeight) / 2,
+                keyLeft,
+                rowCenter - blackKeyHeight / 2,
                 blackKeyWidth,
                 blackKeyHeight);
-            var glowRect = new Rect(rect.X - 5, rect.Y - 5, rect.Width + 10, rect.Height + 10);
-            var inset = Math.Max(1, rowHeight * 0.12);
-            var innerRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
-            dc.DrawRectangle(ThemedPianoActiveGlowBrush, null, glowRect);
-            dc.DrawRectangle(ThemedPianoActiveFillBrush, null, rect);
-            dc.DrawRectangle(null, ThemedPianoActiveOuterPen, rect);
-            dc.DrawRectangle(null, ThemedPianoActiveInnerPen, innerRect);
+
+            var glowRect = new Rect(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
+            // Glow behind the black key
+            dc.DrawRoundedRectangle(ThemedPianoActiveGlowBrush, null, glowRect, 2, 2);
+            // Active fill
+            dc.DrawRoundedRectangle(ThemedPianoActiveBlackFillBrush, null, rect, 1, 1);
+            // Highlight edge
+            dc.DrawRoundedRectangle(null, ThemedPianoActiveOuterPen, rect, 1, 1);
         }
+    }
+
+    /// <summary>
+    /// Calculates the visual top and bottom Y coordinates for a white key in a realistic layout.
+    /// White keys extend into adjacent black key rows (like a real piano).
+    /// </summary>
+    private static void GetWhiteKeyExtent(
+        int pitch, int pitchLow, int pitchHigh,
+        double laneYOffset, double laneHeight, double rowHeight,
+        out double keyTop, out double keyBottom)
+    {
+        var relPitch = pitch - pitchLow;
+        var rowTop = laneYOffset + laneHeight - (relPitch + 1) * rowHeight;
+        var rowBottom = rowTop + rowHeight;
+
+        // Extend into adjacent black key rows
+        var semitone = pitch % 12;
+
+        // Determine how far the white key extends downward (lower pitch = higher Y value in screen coords)
+        // Check if the pitch below is a black key within range
+        if (pitch - 1 >= pitchLow && IsBlackKey(pitch - 1))
+        {
+            // Extend down to the center of the black key row below
+            keyBottom = rowBottom + rowHeight * 0.5;
+        }
+        else
+        {
+            keyBottom = rowBottom;
+        }
+
+        // Determine how far the white key extends upward (higher pitch = lower Y value)
+        // Check if the pitch above is a black key within range
+        if (pitch + 1 <= pitchHigh && IsBlackKey(pitch + 1))
+        {
+            // Extend up to the center of the black key row above
+            keyTop = rowTop - rowHeight * 0.5;
+        }
+        else
+        {
+            keyTop = rowTop;
+        }
+
+        // Clamp to lane bounds
+        var clampTop = laneYOffset;
+        var clampBottom = laneYOffset + laneHeight;
+        if (keyTop < clampTop) keyTop = clampTop;
+        if (keyBottom > clampBottom) keyBottom = clampBottom;
+    }
+
+    /// <summary>
+    /// Creates a notched StreamGeometry for a white key highlight that wraps around adjacent black keys.
+    /// The shape is full-width in the key's own pitch row, but narrowed (right portion only)
+    /// where it extends into an adjacent black key row.
+    /// </summary>
+    private static StreamGeometry CreateWhiteKeyHighlightGeometry(
+        int pitch, int pitchLow, int pitchHigh,
+        double laneYOffset, double laneHeight, double rowHeight,
+        double keyLeft, double keyWidth, double blackKeyWidth)
+    {
+        var relPitch = pitch - pitchLow;
+        var rowTop = laneYOffset + laneHeight - (relPitch + 1) * rowHeight;
+        var rowBottom = rowTop + rowHeight;
+
+        GetWhiteKeyExtent(pitch, pitchLow, pitchHigh, laneYOffset, laneHeight, rowHeight,
+            out var keyTop, out var keyBottom);
+
+        var hasBlackAbove = pitch + 1 <= pitchHigh && IsBlackKey(pitch + 1);
+        var hasBlackBelow = pitch - 1 >= pitchLow && IsBlackKey(pitch - 1);
+
+        var blackKeyRight = keyLeft + blackKeyWidth;
+        var keyRight = keyLeft + keyWidth;
+
+        var geo = new StreamGeometry();
+        using (var ctx = geo.Open())
+        {
+            if (hasBlackAbove && hasBlackBelow)
+            {
+                // Notched on both sides: narrow top extension, full middle, narrow bottom extension
+                ctx.BeginFigure(new Point(blackKeyRight, keyTop), true, true);
+                ctx.LineTo(new Point(keyRight, keyTop), true, false);
+                ctx.LineTo(new Point(keyRight, keyBottom), true, false);
+                ctx.LineTo(new Point(blackKeyRight, keyBottom), true, false);
+                ctx.LineTo(new Point(blackKeyRight, rowBottom), true, false);
+                ctx.LineTo(new Point(keyLeft, rowBottom), true, false);
+                ctx.LineTo(new Point(keyLeft, rowTop), true, false);
+                ctx.LineTo(new Point(blackKeyRight, rowTop), true, false);
+            }
+            else if (hasBlackAbove)
+            {
+                // Notched on top only: narrow top extension, full bottom
+                ctx.BeginFigure(new Point(blackKeyRight, keyTop), true, true);
+                ctx.LineTo(new Point(keyRight, keyTop), true, false);
+                ctx.LineTo(new Point(keyRight, keyBottom), true, false);
+                ctx.LineTo(new Point(keyLeft, keyBottom), true, false);
+                ctx.LineTo(new Point(keyLeft, rowTop), true, false);
+                ctx.LineTo(new Point(blackKeyRight, rowTop), true, false);
+            }
+            else if (hasBlackBelow)
+            {
+                // Notched on bottom only: full top, narrow bottom extension
+                ctx.BeginFigure(new Point(keyLeft, keyTop), true, true);
+                ctx.LineTo(new Point(keyRight, keyTop), true, false);
+                ctx.LineTo(new Point(keyRight, keyBottom), true, false);
+                ctx.LineTo(new Point(blackKeyRight, keyBottom), true, false);
+                ctx.LineTo(new Point(blackKeyRight, rowBottom), true, false);
+                ctx.LineTo(new Point(keyLeft, rowBottom), true, false);
+            }
+            else
+            {
+                // No adjacent black keys: simple rectangle
+                ctx.BeginFigure(new Point(keyLeft, keyTop), true, true);
+                ctx.LineTo(new Point(keyRight, keyTop), true, false);
+                ctx.LineTo(new Point(keyRight, keyBottom), true, false);
+                ctx.LineTo(new Point(keyLeft, keyBottom), true, false);
+            }
+        }
+
+        geo.Freeze();
+        return geo;
     }
 
     private bool[]? GetLiveActiveNotes(LaneLayout lane)
@@ -2115,31 +2257,38 @@ public class PianoRollPanel : FrameworkElement
             : null;
     }
 
-    private static void EnsureKeyboardDrawing(LaneLayout lane, double keyLeft, double keyWidth, double rowHeight)
+    private void EnsureKeyboardDrawing(LaneLayout lane, double keyLeft, double keyWidth, double rowHeight)
     {
+        var isDark = IsDarkTheme;
         if (lane.KeyboardDrawing != null
             && Math.Abs(lane.KeyboardKeyLeft - keyLeft) < 0.1
             && Math.Abs(lane.KeyboardRowHeight - rowHeight) < 0.1
             && Math.Abs(lane.KeyboardWidth - keyWidth) < 0.1
             && Math.Abs(lane.KeyboardHeight - lane.Height) < 0.1
             && lane.KeyboardPitchLow == lane.PitchLow
-            && lane.KeyboardPitchHigh == lane.PitchHigh)
+            && lane.KeyboardPitchHigh == lane.PitchHigh
+            && lane.KeyboardIsDark == isDark)
         {
             return;
         }
 
+        var whiteBrush = ThemedPianoWhiteBrush;
+        var blackBrush = ThemedPianoBlackBrush;
+        var blackHighlightBrush = ThemedPianoBlackHighlightBrush;
+        var separatorPen = ThemedPianoWhiteKeySeparatorPen;
+        var outlinePen = ThemedPianoKeyOutlinePen;
+
         var drawing = new DrawingGroup();
         using (var dc = drawing.Open())
         {
-            var blackKeyWidth = keyWidth * 0.6;
-            var blackKeyHeight = rowHeight * 0.6;
-            var blackKeyX = keyLeft;
+            var blackKeyWidth = keyWidth * 0.72;
 
-            // White keybed behind the keys for contrast
+            // ── White keys ──
+            // Fill entire keyboard area with white key background
             var keybedRect = new Rect(keyLeft, lane.YOffset, keyWidth, lane.Height);
-            dc.DrawRectangle(ThemedPianoWhiteBrush, null, keybedRect);
+            dc.DrawRectangle(whiteBrush, null, keybedRect);
 
-            // Draw white keys
+            // Draw separators between adjacent white keys (at correct realistic positions)
             for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
             {
                 if (IsBlackKey(pitch))
@@ -2147,13 +2296,34 @@ public class PianoRollPanel : FrameworkElement
                     continue;
                 }
 
-                var relPitch = pitch - lane.PitchLow;
-                var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
-                var rect = new Rect(keyLeft, y + 1, keyWidth, rowHeight - 2);
-                dc.DrawRectangle(ThemedPianoWhiteBrush, ThemedPianoKeyOutlinePen, rect);
+                // Draw separator line at the BOTTOM edge of each white key's visual extent
+                // (which is the boundary with the next white key below)
+                GetWhiteKeyExtent(pitch, lane.PitchLow, lane.PitchHigh,
+                    lane.YOffset, lane.Height, rowHeight,
+                    out var keyTop, out var keyBottom);
+
+                // Bottom separator (between this key and the one below)
+                if (keyBottom < lane.YOffset + lane.Height)
+                {
+                    dc.DrawLine(separatorPen,
+                        new Point(keyLeft, keyBottom),
+                        new Point(keyLeft + keyWidth, keyBottom));
+                }
+
+                // Top separator for the topmost white key
+                if (keyTop > lane.YOffset)
+                {
+                    // Only draw if this is not abutting the lane boundary
+                    dc.DrawLine(separatorPen,
+                        new Point(keyLeft, keyTop),
+                        new Point(keyLeft + keyWidth, keyTop));
+                }
             }
 
-            // Draw black keys on top
+            // Subtle outline around the entire keyboard area
+            dc.DrawRectangle(null, outlinePen, keybedRect);
+
+            // ── Black keys on top ──
             for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
             {
                 if (!IsBlackKey(pitch))
@@ -2162,13 +2332,25 @@ public class PianoRollPanel : FrameworkElement
                 }
 
                 var relPitch = pitch - lane.PitchLow;
-                var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
+                var rowCenter = lane.YOffset + lane.Height - (relPitch + 0.5) * rowHeight;
+                var blackKeyHeight = rowHeight * 0.85;
                 var rect = new Rect(
-                    blackKeyX,
-                    y + (rowHeight - blackKeyHeight) / 2,
+                    keyLeft,
+                    rowCenter - blackKeyHeight / 2,
                     blackKeyWidth,
                     blackKeyHeight);
-                dc.DrawRectangle(ThemedPianoBlackBrush, null, rect);
+
+                // Main black key body
+                dc.DrawRoundedRectangle(blackBrush, null, rect, 1, 1);
+
+                // Subtle top highlight strip for 3D depth
+                var highlightHeight = Math.Max(1, blackKeyHeight * 0.3);
+                var highlightRect = new Rect(
+                    rect.X + 1,
+                    rect.Y + 1,
+                    rect.Width - 2,
+                    highlightHeight);
+                dc.DrawRoundedRectangle(blackHighlightBrush, null, highlightRect, 0.5, 0.5);
             }
         }
 
@@ -2181,6 +2363,7 @@ public class PianoRollPanel : FrameworkElement
         lane.KeyboardHeight = lane.Height;
         lane.KeyboardPitchLow = lane.PitchLow;
         lane.KeyboardPitchHigh = lane.PitchHigh;
+        lane.KeyboardIsDark = isDark;
     }
 
     private void UpdateActiveTimelines(TimeSpan renderTime)

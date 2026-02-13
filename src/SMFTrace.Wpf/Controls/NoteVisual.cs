@@ -113,6 +113,7 @@ public sealed class LaneLayout
     public double KeyboardHeight { get; set; }
     public int KeyboardPitchLow { get; set; }
     public int KeyboardPitchHigh { get; set; }
+    public bool KeyboardIsDark { get; set; } = true;
 
     public FormattedText[]? NoteNameTexts { get; set; }
     public double NoteNameFontSize { get; set; }
