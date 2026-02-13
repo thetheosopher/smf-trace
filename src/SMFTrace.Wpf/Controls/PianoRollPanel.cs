@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using SMFTrace.Core.Models;
 using SMFTrace.Wpf.ViewModels;
@@ -16,6 +17,10 @@ namespace SMFTrace.Wpf.Controls;
 /// </summary>
 public class PianoRollPanel : FrameworkElement
 {
+    public event EventHandler<PianoRollSeekEventArgs>? SeekDragStarted;
+    public event EventHandler<PianoRollSeekEventArgs>? SeekDragDelta;
+    public event EventHandler<PianoRollSeekEventArgs>? SeekDragCompleted;
+
     #region Dependency Properties
 
     public static readonly DependencyProperty CurrentTimeProperty =
@@ -505,6 +510,9 @@ public class PianoRollPanel : FrameworkElement
     private bool _laneHeadersDirty = true;
     private bool _tempoDirty = true;
     private bool _lyricsDirty = true;
+    private bool _isSeekDragging;
+    private Point _seekDragStartPoint;
+    private TimeSpan _seekDragStartTime;
 
     // Cached resources
     private static readonly Pen PlayheadPen;
@@ -941,6 +949,73 @@ public class PianoRollPanel : FrameworkElement
         return finalSize;
     }
 
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonDown(e);
+
+        if (e.ChangedButton != MouseButton.Left)
+        {
+            return;
+        }
+
+        var point = e.GetPosition(this);
+        if (!TryStartSeekDrag(point))
+        {
+            return;
+        }
+
+        _isSeekDragging = true;
+        _seekDragStartPoint = point;
+        _seekDragStartTime = CurrentTime;
+        CaptureMouse();
+        SeekDragStarted?.Invoke(this, new PianoRollSeekEventArgs(_seekDragStartTime));
+        e.Handled = true;
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+
+        if (!_isSeekDragging || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        var point = e.GetPosition(this);
+        if (!TryGetSeekTimeFromDrag(point, out var seekTime))
+        {
+            return;
+        }
+
+        SeekDragDelta?.Invoke(this, new PianoRollSeekEventArgs(seekTime));
+        e.Handled = true;
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonUp(e);
+
+        if (!_isSeekDragging)
+        {
+            return;
+        }
+
+        _isSeekDragging = false;
+        if (IsMouseCaptured)
+        {
+            ReleaseMouseCapture();
+        }
+
+        var point = e.GetPosition(this);
+        if (!TryGetSeekTimeFromDrag(point, out var seekTime))
+        {
+            seekTime = _seekDragStartTime;
+        }
+
+        SeekDragCompleted?.Invoke(this, new PianoRollSeekEventArgs(seekTime));
+        e.Handled = true;
+    }
+
     private double CalculateTotalLanesHeight()
     {
         if (_lanes.Count == 0)
@@ -977,6 +1052,36 @@ public class PianoRollPanel : FrameworkElement
         }
 
         return (min, max);
+    }
+
+    private bool TryStartSeekDrag(Point point)
+    {
+        if (point.X < PianoRollSettings.LaneHeaderWidth || point.X > ActualWidth)
+        {
+            return false;
+        }
+
+        var width = ActualWidth - PianoRollSettings.LaneHeaderWidth;
+        return width > 0;
+    }
+
+    private bool TryGetSeekTimeFromDrag(Point point, out TimeSpan seekTime)
+    {
+        seekTime = TimeSpan.Zero;
+
+        var width = ActualWidth - PianoRollSettings.LaneHeaderWidth;
+        if (width <= 0)
+        {
+            return false;
+        }
+
+        var deltaX = point.X - _seekDragStartPoint.X;
+        var secondsPerPixel = WindowSeconds / width;
+        var deltaSeconds = -deltaX * secondsPerPixel;
+        var targetSeconds = _seekDragStartTime.TotalSeconds + deltaSeconds;
+        var clampedSeconds = Math.Clamp(targetSeconds, 0.0, Math.Max(0.0, TotalDuration.TotalSeconds));
+        seekTime = TimeSpan.FromSeconds(clampedSeconds);
+        return true;
     }
 
     private double CalculateLaneHeight(int pitchCount)
@@ -2341,4 +2446,14 @@ public class PianoRollPanel : FrameworkElement
     }
 
     #endregion
+}
+
+public sealed class PianoRollSeekEventArgs : EventArgs
+{
+    public TimeSpan Time { get; }
+
+    public PianoRollSeekEventArgs(TimeSpan time)
+    {
+        Time = time;
+    }
 }

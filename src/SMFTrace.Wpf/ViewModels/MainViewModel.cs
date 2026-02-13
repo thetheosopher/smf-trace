@@ -228,11 +228,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => TotalDuration.TotalSeconds > 0 ? CurrentTime.TotalSeconds / TotalDuration.TotalSeconds : 0;
         set
         {
-            // Only seek when not playing - during playback, the engine controls position
-            // and the TwoWay binding would otherwise create a feedback loop
-            if (TotalDuration.TotalSeconds > 0 && !IsPlaying)
+            if (TotalDuration.TotalSeconds > 0)
             {
-                SeekTo(TimeSpan.FromSeconds(value * TotalDuration.TotalSeconds));
+                UpdateSeekPosition(TimeSpan.FromSeconds(value * TotalDuration.TotalSeconds));
             }
         }
     }
@@ -1209,7 +1207,30 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public void BeginSeek()
     {
+        _engine?.BeginScrub();
         _isSeeking = true;
+    }
+
+    public void UpdateSeekPosition(TimeSpan time)
+    {
+        if (_isSeeking)
+        {
+            _engine?.Scrub(time);
+
+            if (_snapshotBuilder != null && _engine != null)
+            {
+                _channelStates = _snapshotBuilder.RebuildStateAtTick(_engine.CurrentTick);
+                ApplyDefaultInstrumentToChannelStates();
+                OnPropertyChanged(nameof(ChannelStates));
+            }
+
+            return;
+        }
+
+        if (!IsPlaying)
+        {
+            SeekTo(time);
+        }
     }
 
     /// <summary>
@@ -1217,6 +1238,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public void EndSeek()
     {
+        _engine?.EndScrub();
         _isSeeking = false;
         OnPropertyChanged(nameof(SeekPosition));
     }

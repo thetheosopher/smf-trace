@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using SMFTrace.Wpf.Controls;
 using SMFTrace.Wpf.ViewModels;
 
 namespace SMFTrace.Wpf;
@@ -32,6 +33,9 @@ public partial class MainWindow : Window
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.LiveNoteChanged += OnLiveNoteChanged;
         _viewModel.AllNotesCleared += OnAllNotesCleared;
+        PianoRoll.SeekDragStarted += OnPianoRollSeekDragStarted;
+        PianoRoll.SeekDragDelta += OnPianoRollSeekDragDelta;
+        PianoRoll.SeekDragCompleted += OnPianoRollSeekDragCompleted;
 
         Closing += OnClosing;
         StateChanged += OnStateChanged;
@@ -141,6 +145,9 @@ public partial class MainWindow : Window
         Mouse.OverrideCursor = null;
         _viewModel.LiveNoteChanged -= OnLiveNoteChanged;
         _viewModel.AllNotesCleared -= OnAllNotesCleared;
+        PianoRoll.SeekDragStarted -= OnPianoRollSeekDragStarted;
+        PianoRoll.SeekDragDelta -= OnPianoRollSeekDragDelta;
+        PianoRoll.SeekDragCompleted -= OnPianoRollSeekDragCompleted;
         _viewModel.Dispose();
     }
 
@@ -161,6 +168,22 @@ public partial class MainWindow : Window
 
     private void SeekSlider_DragCompleted(object sender, DragCompletedEventArgs e)
     {
+        _viewModel.EndSeek();
+    }
+
+    private void OnPianoRollSeekDragStarted(object? sender, PianoRollSeekEventArgs e)
+    {
+        _viewModel.BeginSeek();
+    }
+
+    private void OnPianoRollSeekDragDelta(object? sender, PianoRollSeekEventArgs e)
+    {
+        _viewModel.UpdateSeekPosition(e.Time);
+    }
+
+    private void OnPianoRollSeekDragCompleted(object? sender, PianoRollSeekEventArgs e)
+    {
+        _viewModel.UpdateSeekPosition(e.Time);
         _viewModel.EndSeek();
     }
 

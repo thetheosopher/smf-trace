@@ -727,7 +727,6 @@
                     Value="{Binding SeekPosition, Mode=TwoWay}"
                     VerticalAlignment="Center"
                     Margin="8,0"
-                    IsHitTestVisible="{Binding IsNotPlaying}"
                     Thumb.DragStarted="SeekSlider_DragStarted"
                     Thumb.DragCompleted="SeekSlider_DragCompleted"/>
 
