@@ -44,6 +44,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _fileHasProgramChanges;
     private byte[] _fileUsedChannels = [];
     private bool _showNoteNames;
+    private bool _isDarkTheme = true;
     private bool _showPianoKeys;
     private bool _compactPitchRange;
     private bool _overlayMode;
@@ -145,6 +146,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _tempoAdjustmentBpm = s.TempoAdjustmentBpm;
         _defaultInstrumentProgram = Math.Clamp(s.DefaultInstrumentProgram, 0, 127);
         _showNoteNames = s.ShowNoteNames;
+        _isDarkTheme = s.IsDarkTheme;
         _showPianoKeys = s.ShowPianoKeys;
         _compactPitchRange = s.CompactPitchRange;
         _overlayMode = s.OverlayMode;
@@ -179,6 +181,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.TempoAdjustmentBpm = TempoAdjustmentBpm;
         s.DefaultInstrumentProgram = _defaultInstrumentProgram;
         s.ShowNoteNames = ShowNoteNames;
+        s.IsDarkTheme = IsDarkTheme;
         s.ShowPianoKeys = ShowPianoKeys;
         s.CompactPitchRange = CompactPitchRange;
         s.OverlayMode = OverlayMode;
@@ -353,6 +356,23 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => _showNoteNames;
         set => SetField(ref _showNoteNames, value);
     }
+
+    public bool IsDarkTheme
+    {
+        get => _isDarkTheme;
+        set
+        {
+            if (SetField(ref _isDarkTheme, value))
+            {
+                OnPropertyChanged(nameof(ThemeIconGlyph));
+                OnPropertyChanged(nameof(ThemeToggleToolTip));
+            }
+        }
+    }
+
+    public string ThemeIconGlyph => IsDarkTheme ? "\uE706" : "\uE708";
+
+    public string ThemeToggleToolTip => IsDarkTheme ? "Switch to light mode" : "Switch to dark mode";
 
     public bool ShowPianoKeys
     {

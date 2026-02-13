@@ -39,6 +39,7 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(1280, service.Current.WindowWidth);
         Assert.Equal(800, service.Current.WindowHeight);
         Assert.True(service.Current.ShowTempo);
+        Assert.True(service.Current.IsDarkTheme);
     }
 
     [Fact]
@@ -49,6 +50,7 @@ public class SettingsServiceTests : IDisposable
         service.Current.WindowWidth = 1920;
         service.Current.WindowHeight = 1080;
         service.Current.LastDeviceName = "Test Device";
+        service.Current.IsDarkTheme = false;
 
         // Act
         service.Save();
@@ -60,6 +62,7 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(1920, service2.Current.WindowWidth);
         Assert.Equal(1080, service2.Current.WindowHeight);
         Assert.Equal("Test Device", service2.Current.LastDeviceName);
+        Assert.False(service2.Current.IsDarkTheme);
     }
 
     [Fact]

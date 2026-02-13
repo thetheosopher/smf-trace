@@ -149,6 +149,13 @@ public class PianoRollPanel : FrameworkElement
             typeof(PianoRollPanel),
             new FrameworkPropertyMetadata(Array.Empty<TrackPlaybackViewModel>(), OnTrackPlaybackStatesChanged));
 
+    public static readonly DependencyProperty IsDarkThemeProperty =
+        DependencyProperty.Register(
+            nameof(IsDarkTheme),
+            typeof(bool),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender, OnIsDarkThemeChanged));
+
     public TimeSpan CurrentTime
     {
         get => (TimeSpan)GetValue(CurrentTimeProperty);
@@ -248,6 +255,12 @@ public class PianoRollPanel : FrameworkElement
     {
         get => (IReadOnlyList<TrackPlaybackViewModel>)GetValue(TrackPlaybackStatesProperty);
         set => SetValue(TrackPlaybackStatesProperty, value);
+    }
+
+    public bool IsDarkTheme
+    {
+        get => (bool)GetValue(IsDarkThemeProperty);
+        set => SetValue(IsDarkThemeProperty, value);
     }
 
     private static void OnWindowSecondsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -430,6 +443,14 @@ public class PianoRollPanel : FrameworkElement
         }
     }
 
+    private static void OnIsDarkThemeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PianoRollPanel panel)
+        {
+            panel.OnThemeChanged();
+        }
+    }
+
 #pragma warning disable CA1859 // CoerceValueCallback must return object
     private static object CoerceWindowSeconds(DependencyObject d, object baseValue)
     {
@@ -517,25 +538,53 @@ public class PianoRollPanel : FrameworkElement
     // Cached resources
     private static readonly Pen PlayheadPen;
     private static readonly Pen GridPen;
+    private static readonly Pen GridPenLight;
     private static readonly Pen OctaveGridPen;
+    private static readonly Pen OctaveGridPenLight;
     private static readonly Brush BackgroundBrush;
+    private static readonly Brush BackgroundBrushLight;
     private static readonly Brush LaneBackgroundBrush;
+    private static readonly Brush LaneBackgroundBrushLight;
     private static readonly Brush LaneAlternateBrush;
+    private static readonly Brush LaneAlternateBrushLight;
     private static readonly Brush LaneHeaderBrush;
+    private static readonly Brush LaneHeaderBrushLight;
     private static readonly Brush PianoWhiteBrush;
+    private static readonly Brush PianoWhiteBrushLight;
     private static readonly Brush PianoBlackBrush;
+    private static readonly Brush PianoBlackBrushLight;
     private static readonly Brush PianoActiveFillBrush;
+    private static readonly Brush PianoActiveFillBrushLight;
     private static readonly Brush PianoActiveGlowBrush;
+    private static readonly Brush PianoActiveGlowBrushLight;
     private static readonly Pen PianoActiveOuterPen;
+    private static readonly Pen PianoActiveOuterPenLight;
     private static readonly Pen PianoActiveInnerPen;
+    private static readonly Pen PianoActiveInnerPenLight;
     private static readonly Pen PianoKeyOutlinePen;
+    private static readonly Pen PianoKeyOutlinePenLight;
     private static readonly Typeface LabelTypeface;
     private static readonly Typeface LyricsTypeface;
     private static readonly Brush LyricsLaneBrush;
+    private static readonly Brush LyricsLaneBrushLight;
     private static readonly Brush LyricsTextBrush;
+    private static readonly Brush LyricsTextBrushLight;
     private static readonly Brush LyricsTextDimBrush;
+    private static readonly Brush LyricsTextDimBrushLight;
     private static readonly Pen LyricsSeparatorPen;
+    private static readonly Pen LyricsSeparatorPenLight;
     private static readonly Brush TempoBadgeBrush;
+    private static readonly Brush TempoBadgeBrushLight;
+    private static readonly Brush HeaderTrackTextBrush;
+    private static readonly Brush HeaderTrackTextBrushLight;
+    private static readonly Brush HeaderChannelTextBrush;
+    private static readonly Brush HeaderChannelTextBrushLight;
+    private static readonly Brush HeaderInstrumentTextBrush;
+    private static readonly Brush HeaderInstrumentTextBrushLight;
+    private static readonly Brush NoteNameOctaveBrush;
+    private static readonly Brush NoteNameOctaveBrushLight;
+    private static readonly Brush NoteNameNormalBrush;
+    private static readonly Brush NoteNameNormalBrushLight;
 
     private const double LyricsLaneHeight = 26.0;
 
@@ -550,56 +599,108 @@ public class PianoRollPanel : FrameworkElement
 
         GridPen = new Pen(new SolidColorBrush(Color.FromArgb(40, 128, 128, 128)), 1);
         GridPen.Freeze();
+        GridPenLight = new Pen(new SolidColorBrush(Color.FromArgb(55, 120, 130, 145)), 1);
+        GridPenLight.Freeze();
 
         OctaveGridPen = new Pen(new SolidColorBrush(Color.FromArgb(80, 128, 128, 128)), 1);
         OctaveGridPen.Freeze();
+        OctaveGridPenLight = new Pen(new SolidColorBrush(Color.FromArgb(110, 105, 115, 130)), 1);
+        OctaveGridPenLight.Freeze();
 
         BackgroundBrush = new SolidColorBrush(Color.FromRgb(30, 30, 35));
         BackgroundBrush.Freeze();
+        BackgroundBrushLight = new SolidColorBrush(Color.FromRgb(242, 245, 251));
+        BackgroundBrushLight.Freeze();
 
         LaneBackgroundBrush = new SolidColorBrush(Color.FromRgb(40, 40, 45));
         LaneBackgroundBrush.Freeze();
+        LaneBackgroundBrushLight = new SolidColorBrush(Color.FromRgb(248, 250, 255));
+        LaneBackgroundBrushLight.Freeze();
 
         LaneAlternateBrush = new SolidColorBrush(Color.FromRgb(35, 35, 40));
         LaneAlternateBrush.Freeze();
+        LaneAlternateBrushLight = new SolidColorBrush(Color.FromRgb(237, 242, 251));
+        LaneAlternateBrushLight.Freeze();
 
         LaneHeaderBrush = new SolidColorBrush(Color.FromRgb(50, 50, 55));
         LaneHeaderBrush.Freeze();
+        LaneHeaderBrushLight = new SolidColorBrush(Color.FromRgb(226, 232, 243));
+        LaneHeaderBrushLight.Freeze();
 
         PianoWhiteBrush = new SolidColorBrush(Color.FromRgb(235, 235, 235));
         PianoWhiteBrush.Freeze();
+        PianoWhiteBrushLight = new SolidColorBrush(Color.FromRgb(253, 254, 255));
+        PianoWhiteBrushLight.Freeze();
 
         PianoBlackBrush = new SolidColorBrush(Color.FromRgb(35, 35, 35));
         PianoBlackBrush.Freeze();
+        PianoBlackBrushLight = new SolidColorBrush(Color.FromRgb(78, 86, 101));
+        PianoBlackBrushLight.Freeze();
 
         PianoActiveFillBrush = new SolidColorBrush(Color.FromArgb(255, 213, 94, 0));
         PianoActiveFillBrush.Freeze();
+        PianoActiveFillBrushLight = new SolidColorBrush(Color.FromArgb(255, 198, 88, 18));
+        PianoActiveFillBrushLight.Freeze();
 
         PianoActiveGlowBrush = new SolidColorBrush(Color.FromArgb(255, 213, 94, 0));
         PianoActiveGlowBrush.Freeze();
+        PianoActiveGlowBrushLight = new SolidColorBrush(Color.FromArgb(210, 198, 88, 18));
+        PianoActiveGlowBrushLight.Freeze();
 
         PianoActiveOuterPen = new Pen(new SolidColorBrush(Color.FromArgb(224, 255, 255, 255)), 2);
         PianoActiveOuterPen.Freeze();
+        PianoActiveOuterPenLight = new Pen(new SolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 2);
+        PianoActiveOuterPenLight.Freeze();
 
         PianoActiveInnerPen = new Pen(new SolidColorBrush(Color.FromArgb(166, 0, 0, 0)), 2);
         PianoActiveInnerPen.Freeze();
+        PianoActiveInnerPenLight = new Pen(new SolidColorBrush(Color.FromArgb(170, 65, 46, 23)), 2);
+        PianoActiveInnerPenLight.Freeze();
 
         PianoKeyOutlinePen = new Pen(new SolidColorBrush(Color.FromArgb(60, 200, 200, 200)), 1);
         PianoKeyOutlinePen.Freeze();
+        PianoKeyOutlinePenLight = new Pen(new SolidColorBrush(Color.FromArgb(90, 143, 154, 170)), 1);
+        PianoKeyOutlinePenLight.Freeze();
 
         LabelTypeface = new Typeface("Segoe UI");
 
         LyricsTypeface = new Typeface("Segoe UI Semibold");
         LyricsLaneBrush = new SolidColorBrush(Color.FromRgb(30, 30, 36));
         LyricsLaneBrush.Freeze();
+        LyricsLaneBrushLight = new SolidColorBrush(Color.FromRgb(231, 236, 246));
+        LyricsLaneBrushLight.Freeze();
         LyricsTextBrush = new SolidColorBrush(Color.FromRgb(241, 211, 74));
         LyricsTextBrush.Freeze();
+        LyricsTextBrushLight = new SolidColorBrush(Color.FromRgb(120, 83, 0));
+        LyricsTextBrushLight.Freeze();
         LyricsTextDimBrush = new SolidColorBrush(Color.FromRgb(171, 150, 74));
         LyricsTextDimBrush.Freeze();
+        LyricsTextDimBrushLight = new SolidColorBrush(Color.FromRgb(145, 116, 44));
+        LyricsTextDimBrushLight.Freeze();
         LyricsSeparatorPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 70, 70, 70)), 1);
         LyricsSeparatorPen.Freeze();
+        LyricsSeparatorPenLight = new Pen(new SolidColorBrush(Color.FromArgb(120, 140, 150, 165)), 1);
+        LyricsSeparatorPenLight.Freeze();
         TempoBadgeBrush = new SolidColorBrush(Color.FromArgb(200, 60, 60, 65));
         TempoBadgeBrush.Freeze();
+        TempoBadgeBrushLight = new SolidColorBrush(Color.FromArgb(215, 210, 224, 243));
+        TempoBadgeBrushLight.Freeze();
+
+        HeaderTrackTextBrush = Brushes.White;
+        HeaderTrackTextBrushLight = new SolidColorBrush(Color.FromRgb(29, 40, 56));
+        HeaderTrackTextBrushLight.Freeze();
+        HeaderChannelTextBrush = Brushes.LightGray;
+        HeaderChannelTextBrushLight = new SolidColorBrush(Color.FromRgb(84, 97, 118));
+        HeaderChannelTextBrushLight.Freeze();
+        HeaderInstrumentTextBrush = Brushes.CornflowerBlue;
+        HeaderInstrumentTextBrushLight = new SolidColorBrush(Color.FromRgb(39, 90, 161));
+        HeaderInstrumentTextBrushLight.Freeze();
+        NoteNameOctaveBrush = Brushes.White;
+        NoteNameOctaveBrushLight = new SolidColorBrush(Color.FromRgb(35, 48, 67));
+        NoteNameOctaveBrushLight.Freeze();
+        NoteNameNormalBrush = Brushes.Gray;
+        NoteNameNormalBrushLight = new SolidColorBrush(Color.FromRgb(110, 122, 142));
+        NoteNameNormalBrushLight.Freeze();
     }
 
     #endregion
@@ -641,6 +742,49 @@ public class PianoRollPanel : FrameworkElement
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
     {
         base.OnRenderSizeChanged(sizeInfo);
+        MarkAllDirty();
+        InvalidateVisual();
+    }
+
+    private Brush ThemedBackgroundBrush => IsDarkTheme ? BackgroundBrush : BackgroundBrushLight;
+    private Brush ThemedLaneBackgroundBrush => IsDarkTheme ? LaneBackgroundBrush : LaneBackgroundBrushLight;
+    private Brush ThemedLaneAlternateBrush => IsDarkTheme ? LaneAlternateBrush : LaneAlternateBrushLight;
+    private Brush ThemedLaneHeaderBrush => IsDarkTheme ? LaneHeaderBrush : LaneHeaderBrushLight;
+    private static Brush ThemedPianoWhiteBrush => PianoWhiteBrush;
+    private static Brush ThemedPianoBlackBrush => PianoBlackBrush;
+    private static Brush ThemedPianoActiveFillBrush => PianoActiveFillBrush;
+    private static Brush ThemedPianoActiveGlowBrush => PianoActiveGlowBrush;
+    private static Pen ThemedPianoActiveOuterPen => PianoActiveOuterPen;
+    private static Pen ThemedPianoActiveInnerPen => PianoActiveInnerPen;
+    private static Pen ThemedPianoKeyOutlinePen => PianoKeyOutlinePen;
+    private Pen ThemedGridPen => IsDarkTheme ? GridPen : GridPenLight;
+    private Pen ThemedOctaveGridPen => IsDarkTheme ? OctaveGridPen : OctaveGridPenLight;
+    private Brush ThemedLyricsLaneBrush => IsDarkTheme ? LyricsLaneBrush : LyricsLaneBrushLight;
+    private Brush ThemedLyricsTextBrush => IsDarkTheme ? LyricsTextBrush : LyricsTextBrushLight;
+    private Brush ThemedLyricsTextDimBrush => IsDarkTheme ? LyricsTextDimBrush : LyricsTextDimBrushLight;
+    private Pen ThemedLyricsSeparatorPen => IsDarkTheme ? LyricsSeparatorPen : LyricsSeparatorPenLight;
+    private Brush ThemedTempoBadgeBrush => IsDarkTheme ? TempoBadgeBrush : TempoBadgeBrushLight;
+    private Brush ThemedHeaderTrackTextBrush => IsDarkTheme ? HeaderTrackTextBrush : HeaderTrackTextBrushLight;
+    private Brush ThemedHeaderChannelTextBrush => IsDarkTheme ? HeaderChannelTextBrush : HeaderChannelTextBrushLight;
+    private Brush ThemedHeaderInstrumentTextBrush => IsDarkTheme ? HeaderInstrumentTextBrush : HeaderInstrumentTextBrushLight;
+    private Brush ThemedNoteNameOctaveBrush => IsDarkTheme ? NoteNameOctaveBrush : NoteNameOctaveBrushLight;
+    private Brush ThemedNoteNameNormalBrush => IsDarkTheme ? NoteNameNormalBrush : NoteNameNormalBrushLight;
+
+    private void OnThemeChanged()
+    {
+        _tempoText = null;
+        _overlayTrackTexts = null;
+        _overlayTrackTitleText = null;
+        _overlayTrackDpi = 0;
+        _overlayTrackMaxWidth = 0;
+
+        foreach (var lane in _lanes)
+        {
+            lane.InvalidateHeaderCache();
+            lane.InvalidateNoteNameCache();
+            lane.KeyboardDrawing = null;
+        }
+
         MarkAllDirty();
         InvalidateVisual();
     }
@@ -1399,7 +1543,7 @@ public class PianoRollPanel : FrameworkElement
     private void RenderBackground()
     {
         using var dc = _backgroundVisual.RenderOpen();
-        dc.DrawRectangle(BackgroundBrush, null, new Rect(0, 0, ActualWidth, ActualHeight));
+        dc.DrawRectangle(ThemedBackgroundBrush, null, new Rect(0, 0, ActualWidth, ActualHeight));
 
         GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
 
@@ -1417,7 +1561,7 @@ public class PianoRollPanel : FrameworkElement
             {
                 continue;
             }
-            var brush = i % 2 == 0 ? LaneBackgroundBrush : LaneAlternateBrush;
+            var brush = i % 2 == 0 ? ThemedLaneBackgroundBrush : ThemedLaneAlternateBrush;
             dc.DrawRectangle(
                 brush,
                 null,
@@ -1462,7 +1606,7 @@ public class PianoRollPanel : FrameworkElement
             var x = PianoRollSettings.LaneHeaderWidth + (t - leftTime) * pixelsPerSecond;
             if (x < PianoRollSettings.LaneHeaderWidth || x > ActualWidth) continue;
 
-            dc.DrawLine(GridPen, new Point(x, contentTop), new Point(x, visibleBottom));
+            dc.DrawLine(ThemedGridPen, new Point(x, contentTop), new Point(x, visibleBottom));
         }
 
         var clipped = TryGetContentClipRect(out var clipRect);
@@ -1499,7 +1643,7 @@ public class PianoRollPanel : FrameworkElement
 
             // Emphasize octave lines (C notes)
             var isOctave = pitch % 12 == 0;
-            var pen = isOctave ? OctaveGridPen : GridPen;
+            var pen = isOctave ? ThemedOctaveGridPen : ThemedGridPen;
 
             dc.DrawLine(pen,
                 new Point(PianoRollSettings.LaneHeaderWidth, y),
@@ -1600,8 +1744,12 @@ public class PianoRollPanel : FrameworkElement
 
             // Use track colors in overlay mode, velocity colors otherwise
             var brush = useTrackColors
-                ? TrackColorMapper.GetBrush(GetOverlayColorTrackIndex(note.TrackIndex), note.Velocity)
-                : VelocityColorMapper.GetBrush(note.Velocity);
+                ? (IsDarkTheme
+                    ? TrackColorMapper.GetBrush(GetOverlayColorTrackIndex(note.TrackIndex), note.Velocity)
+                    : TrackColorMapper.GetLightThemeBrush(GetOverlayColorTrackIndex(note.TrackIndex), note.Velocity))
+                : (IsDarkTheme
+                    ? VelocityColorMapper.GetBrush(note.Velocity)
+                    : VelocityColorMapper.GetLightThemeBrush(note.Velocity));
 
             if (_hasMutedTracks && _mutedTrackIndices.Contains(note.TrackIndex))
             {
@@ -1672,8 +1820,8 @@ public class PianoRollPanel : FrameworkElement
         }
 
         var rect = new Rect(0, 0, ActualWidth, laneHeight);
-        dc.DrawRectangle(LyricsLaneBrush, null, rect);
-        dc.DrawLine(LyricsSeparatorPen, new Point(0, laneHeight), new Point(ActualWidth, laneHeight));
+        dc.DrawRectangle(ThemedLyricsLaneBrush, null, rect);
+        dc.DrawLine(ThemedLyricsSeparatorPen, new Point(0, laneHeight), new Point(ActualWidth, laneHeight));
 
         if (_lyrics.Count == 0)
         {
@@ -1709,7 +1857,7 @@ public class PianoRollPanel : FrameworkElement
                 continue;
             }
 
-            var formatted = lyric.GetFormattedText(dpi, LyricsTypeface, 14, LyricsTextBrush, LyricsTextDimBrush);
+            var formatted = lyric.GetFormattedText(dpi, LyricsTypeface, 14, ThemedLyricsTextBrush, ThemedLyricsTextDimBrush);
 
             dc.DrawText(formatted, new Point(x, y));
         }
@@ -1722,7 +1870,7 @@ public class PianoRollPanel : FrameworkElement
         using var dc = _laneHeadersVisual.RenderOpen();
 
         // Background
-        dc.DrawRectangle(LaneHeaderBrush, null, new Rect(0, 0, PianoRollSettings.LaneHeaderWidth, ActualHeight));
+        dc.DrawRectangle(ThemedLaneHeaderBrush, null, new Rect(0, 0, PianoRollSettings.LaneHeaderWidth, ActualHeight));
 
         if (OverlayMode)
         {
@@ -1744,6 +1892,8 @@ public class PianoRollPanel : FrameworkElement
             {
                 RenderNoteNamesForLane(dc, _lanes[0]);
             }
+
+            DrawHeaderSeparator(dc);
             return;
         }
 
@@ -1799,9 +1949,17 @@ public class PianoRollPanel : FrameworkElement
                 RenderNoteNamesForLane(dc, lane);
             }
         }
+
+        DrawHeaderSeparator(dc);
     }
 
-    private static void EnsureLaneHeaderText(LaneLayout lane, double dpi)
+    private void DrawHeaderSeparator(DrawingContext dc)
+    {
+        var separatorX = PianoRollSettings.LaneHeaderWidth;
+        dc.DrawLine(ThemedGridPen, new Point(separatorX, 0), new Point(separatorX, ActualHeight));
+    }
+
+    private void EnsureLaneHeaderText(LaneLayout lane, double dpi)
     {
         var trackName = lane.TrackName ?? string.Empty;
         var channelLabel = $"T{lane.Id.TrackIndex} Ch{lane.Id.Channel + 1}";
@@ -1823,7 +1981,7 @@ public class PianoRollPanel : FrameworkElement
                 FlowDirection.LeftToRight,
                 LabelTypeface,
                 11,
-                Brushes.White,
+                ThemedHeaderTrackTextBrush,
                 dpi);
 
         lane.ChannelText = new FormattedText(
@@ -1832,7 +1990,7 @@ public class PianoRollPanel : FrameworkElement
             FlowDirection.LeftToRight,
             LabelTypeface,
             10,
-            Brushes.LightGray,
+            ThemedHeaderChannelTextBrush,
             dpi);
 
         lane.InstrumentText = new FormattedText(
@@ -1841,7 +1999,7 @@ public class PianoRollPanel : FrameworkElement
             FlowDirection.LeftToRight,
             LabelTypeface,
             10,
-            Brushes.CornflowerBlue,
+            ThemedHeaderInstrumentTextBrush,
             dpi);
 
         lane.CachedHeaderDpi = dpi;
@@ -1890,10 +2048,10 @@ public class PianoRollPanel : FrameworkElement
             var inset = Math.Max(1, rowHeight * 0.12);
             var glowRect = new Rect(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
             var innerRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
-            dc.DrawRectangle(PianoActiveGlowBrush, null, glowRect);
-            dc.DrawRectangle(PianoActiveFillBrush, null, rect);
-            dc.DrawRectangle(null, PianoActiveOuterPen, rect);
-            dc.DrawRectangle(null, PianoActiveInnerPen, innerRect);
+            dc.DrawRectangle(ThemedPianoActiveGlowBrush, null, glowRect);
+            dc.DrawRectangle(ThemedPianoActiveFillBrush, null, rect);
+            dc.DrawRectangle(null, ThemedPianoActiveOuterPen, rect);
+            dc.DrawRectangle(null, ThemedPianoActiveInnerPen, innerRect);
         }
 
         // Draw black key highlights
@@ -1914,10 +2072,10 @@ public class PianoRollPanel : FrameworkElement
             var glowRect = new Rect(rect.X - 5, rect.Y - 5, rect.Width + 10, rect.Height + 10);
             var inset = Math.Max(1, rowHeight * 0.12);
             var innerRect = new Rect(rect.X + inset, rect.Y + inset, rect.Width - inset * 2, rect.Height - inset * 2);
-            dc.DrawRectangle(PianoActiveGlowBrush, null, glowRect);
-            dc.DrawRectangle(PianoActiveFillBrush, null, rect);
-            dc.DrawRectangle(null, PianoActiveOuterPen, rect);
-            dc.DrawRectangle(null, PianoActiveInnerPen, innerRect);
+            dc.DrawRectangle(ThemedPianoActiveGlowBrush, null, glowRect);
+            dc.DrawRectangle(ThemedPianoActiveFillBrush, null, rect);
+            dc.DrawRectangle(null, ThemedPianoActiveOuterPen, rect);
+            dc.DrawRectangle(null, ThemedPianoActiveInnerPen, innerRect);
         }
     }
 
@@ -1961,7 +2119,7 @@ public class PianoRollPanel : FrameworkElement
 
             // White keybed behind the keys for contrast
             var keybedRect = new Rect(keyLeft, lane.YOffset, keyWidth, lane.Height);
-            dc.DrawRectangle(PianoWhiteBrush, null, keybedRect);
+            dc.DrawRectangle(ThemedPianoWhiteBrush, null, keybedRect);
 
             // Draw white keys
             for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
@@ -1974,7 +2132,7 @@ public class PianoRollPanel : FrameworkElement
                 var relPitch = pitch - lane.PitchLow;
                 var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
                 var rect = new Rect(keyLeft, y + 1, keyWidth, rowHeight - 2);
-                dc.DrawRectangle(PianoWhiteBrush, PianoKeyOutlinePen, rect);
+                dc.DrawRectangle(ThemedPianoWhiteBrush, ThemedPianoKeyOutlinePen, rect);
             }
 
             // Draw black keys on top
@@ -1992,7 +2150,7 @@ public class PianoRollPanel : FrameworkElement
                     y + (rowHeight - blackKeyHeight) / 2,
                     blackKeyWidth,
                     blackKeyHeight);
-                dc.DrawRectangle(PianoBlackBrush, null, rect);
+                dc.DrawRectangle(ThemedPianoBlackBrush, null, rect);
             }
         }
 
@@ -2071,7 +2229,7 @@ public class PianoRollPanel : FrameworkElement
         }
     }
 
-    private static void EnsureNoteNameCache(LaneLayout lane, double fontSize, double dpi)
+    private void EnsureNoteNameCache(LaneLayout lane, double fontSize, double dpi)
     {
         var pitchLow = lane.PitchLow;
         var pitchHigh = lane.PitchHigh;
@@ -2109,7 +2267,7 @@ public class PianoRollPanel : FrameworkElement
                 FlowDirection.LeftToRight,
                 LabelTypeface,
                 fontSize,
-                isOctave ? Brushes.White : Brushes.Gray,
+                isOctave ? ThemedNoteNameOctaveBrush : ThemedNoteNameNormalBrush,
                 dpi);
         }
 
@@ -2157,7 +2315,7 @@ public class PianoRollPanel : FrameworkElement
                     FlowDirection.LeftToRight,
                     LabelTypeface,
                     9,
-                    Brushes.Gray,
+                    ThemedNoteNameNormalBrush,
                     dpi);
                 dc.DrawText(moreText, new Point(x, y));
                 break;
@@ -2165,7 +2323,9 @@ public class PianoRollPanel : FrameworkElement
 
             // Color indicator box
             var trackIndex = _overlayTrackIndices[i];
-            var trackBrush = TrackColorMapper.GetBrush(GetOverlayColorTrackIndex(trackIndex));
+            var trackBrush = IsDarkTheme
+                ? TrackColorMapper.GetBrush(GetOverlayColorTrackIndex(trackIndex))
+                : TrackColorMapper.GetLightThemeBrush(GetOverlayColorTrackIndex(trackIndex));
             var colorRect = new Rect(x, y + 2, colorBoxSize, colorBoxSize);
             dc.DrawRectangle(trackBrush, null, colorRect);
 
@@ -2229,7 +2389,7 @@ public class PianoRollPanel : FrameworkElement
             FlowDirection.LeftToRight,
             LabelTypeface,
             11,
-            Brushes.White,
+            ThemedHeaderTrackTextBrush,
             dpi);
 
         var texts = new List<FormattedText>(_overlayTrackNames.Count);
@@ -2241,7 +2401,7 @@ public class PianoRollPanel : FrameworkElement
                 FlowDirection.LeftToRight,
                 LabelTypeface,
                 10,
-                Brushes.White,
+                ThemedHeaderTrackTextBrush,
                 dpi)
             {
                 MaxTextWidth = maxWidth,
@@ -2371,7 +2531,7 @@ public class PianoRollPanel : FrameworkElement
                 FlowDirection.LeftToRight,
                 LabelTypeface,
                 14,
-                Brushes.White,
+                ThemedHeaderTrackTextBrush,
                 dpi);
         }
 
@@ -2393,7 +2553,7 @@ public class PianoRollPanel : FrameworkElement
 
         // Background with slight transparency
         dc.DrawRoundedRectangle(
-            TempoBadgeBrush,
+            ThemedTempoBadgeBrush,
             null,
             new Rect(x, y, badgeWidth, badgeHeight),
             4, 4);

@@ -73,6 +73,11 @@ public sealed class AppSettings
     public bool ShowNoteNames { get; set; }
 
     /// <summary>
+    /// Whether dark theme mode is enabled.
+    /// </summary>
+    public bool IsDarkTheme { get; set; } = true;
+
+    /// <summary>
     /// Whether piano keys are shown in the lane header.
     /// </summary>
     public bool ShowPianoKeys { get; set; }

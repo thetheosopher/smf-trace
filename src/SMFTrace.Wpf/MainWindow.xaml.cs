@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using SMFTrace.Wpf.Controls;
 using SMFTrace.Wpf.ViewModels;
 
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
 
         _viewModel = new MainViewModel();
         DataContext = _viewModel;
+        ApplyThemeResources(_viewModel.IsDarkTheme);
 
         // Apply window position/size from settings
         ApplyWindowSettings();
@@ -137,7 +139,75 @@ public partial class MainWindow : Window
             case nameof(MainViewModel.IsBusy):
                 Mouse.OverrideCursor = _viewModel.IsBusy ? Cursors.Wait : null;
                 break;
+
+            case nameof(MainViewModel.IsDarkTheme):
+                ApplyThemeResources(_viewModel.IsDarkTheme);
+                break;
         }
+    }
+
+    private void ApplyThemeResources(bool isDarkTheme)
+    {
+        if (isDarkTheme)
+        {
+            SetBrushResource("WindowBackgroundBrush", "#1E1E23");
+            SetBrushResource("PanelBackgroundBrush", "#2D2D30");
+            SetBrushResource("ControlBackgroundBrush", "#3C3C3C");
+            SetBrushResource("ControlHoverBackgroundBrush", "#505050");
+            SetBrushResource("ControlPressedBackgroundBrush", "#007ACC");
+            SetBrushResource("ControlDisabledBackgroundBrush", "#2A2A2A");
+            SetBrushResource("ControlBorderBrush", "#555555");
+            SetBrushResource("TextPrimaryBrush", "#FFFFFF");
+            SetBrushResource("TextMutedBrush", "#666666");
+            SetBrushResource("SurfaceBackgroundBrush", "#121212");
+            SetBrushResource("SurfacePanelBrush", "#1B1B20");
+            SetBrushResource("SurfaceBorderBrush", "#2A2A2A");
+            SetBrushResource("TabItemBackgroundBrush", "#111111");
+            SetBrushResource("TabItemHoverBrush", "#161616");
+            SetBrushResource("TabItemSelectedBrush", "#000000");
+            SetBrushResource("TabItemSelectedBorderBrush", "#3A3A3A");
+            SetBrushResource("AccentBrush", "#007ACC");
+            SetBrushResource("TempoBadgeBrush", "#C83C3C41");
+            SetBrushResource("PlaylistRowBrush", "#252526");
+            SetBrushResource("PlaylistAltRowBrush", "#1F1F23");
+            SetBrushResource("PlaylistHeaderBrush", "#2D2D30");
+            SetBrushResource("PlaylistSelectionBrush", "#2E3A52");
+            SetBrushResource("PlaylistNowPlayingGlyphBrush", "#5DA9FF");
+        }
+        else
+        {
+            SetBrushResource("WindowBackgroundBrush", "#F3F4F8");
+            SetBrushResource("PanelBackgroundBrush", "#E6E8EF");
+            SetBrushResource("ControlBackgroundBrush", "#FFFFFF");
+            SetBrushResource("ControlHoverBackgroundBrush", "#F1F3F8");
+            SetBrushResource("ControlPressedBackgroundBrush", "#2F7FD8");
+            SetBrushResource("ControlDisabledBackgroundBrush", "#DADDE6");
+            SetBrushResource("ControlBorderBrush", "#B8BECC");
+            SetBrushResource("TextPrimaryBrush", "#1F2430");
+            SetBrushResource("TextMutedBrush", "#747B8B");
+            SetBrushResource("SurfaceBackgroundBrush", "#EEF1F7");
+            SetBrushResource("SurfacePanelBrush", "#E4E8F1");
+            SetBrushResource("SurfaceBorderBrush", "#C8CEDC");
+            SetBrushResource("TabItemBackgroundBrush", "#E0E5EF");
+            SetBrushResource("TabItemHoverBrush", "#D5DCE9");
+            SetBrushResource("TabItemSelectedBrush", "#FFFFFF");
+            SetBrushResource("TabItemSelectedBorderBrush", "#B8BECC");
+            SetBrushResource("AccentBrush", "#2F7FD8");
+            SetBrushResource("TempoBadgeBrush", "#BFD7EE");
+            SetBrushResource("PlaylistRowBrush", "#FFFFFF");
+            SetBrushResource("PlaylistAltRowBrush", "#F4F6FB");
+            SetBrushResource("PlaylistHeaderBrush", "#E0E5EF");
+            SetBrushResource("PlaylistSelectionBrush", "#D5E6FA");
+            SetBrushResource("PlaylistNowPlayingGlyphBrush", "#2F7FD8");
+        }
+    }
+
+    private void SetBrushResource(string key, string hexColor)
+    {
+        var color = (Color)ColorConverter.ConvertFromString(hexColor);
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        Resources[key] = brush;
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)

@@ -225,11 +225,13 @@ public sealed class LaneEventTimeline
 public static class VelocityColorMapper
 {
     private static readonly SolidColorBrush[] VelocityBrushes;
+    private static readonly SolidColorBrush[] VelocityBrushesLight;
 
     static VelocityColorMapper()
     {
         // Pre-create brushes for each velocity value (0-127)
         VelocityBrushes = new SolidColorBrush[128];
+        VelocityBrushesLight = new SolidColorBrush[128];
 
         for (var i = 0; i < 128; i++)
         {
@@ -241,6 +243,13 @@ public static class VelocityColorMapper
             var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
             brush.Freeze();
             VelocityBrushes[i] = brush;
+
+            var lightR = (byte)Math.Max(0, r - 70);
+            var lightG = (byte)Math.Max(0, g - 85);
+            var lightB = (byte)Math.Max(0, b - 75);
+            var lightBrush = new SolidColorBrush(Color.FromRgb(lightR, lightG, lightB));
+            lightBrush.Freeze();
+            VelocityBrushesLight[i] = lightBrush;
         }
     }
 
@@ -250,6 +259,14 @@ public static class VelocityColorMapper
     public static SolidColorBrush GetBrush(byte velocity)
     {
         return VelocityBrushes[velocity < 128 ? velocity : 127];
+    }
+
+    /// <summary>
+    /// Gets a frozen brush tuned for light theme backgrounds.
+    /// </summary>
+    public static SolidColorBrush GetLightThemeBrush(byte velocity)
+    {
+        return VelocityBrushesLight[velocity < 128 ? velocity : 127];
     }
 
     /// <summary>
@@ -268,13 +285,17 @@ public static class TrackColorMapper
 {
     // 16 distinct hue values for tracks
     private static readonly SolidColorBrush[] TrackBrushes;
+    private static readonly SolidColorBrush[] TrackBrushesLight;
     private static readonly SolidColorBrush[,] TrackVelocityBrushes;
+    private static readonly SolidColorBrush[,] TrackVelocityBrushesLight;
 
     static TrackColorMapper()
     {
         // Create 16 distinct colors using HSL color wheel
         TrackBrushes = new SolidColorBrush[16];
+        TrackBrushesLight = new SolidColorBrush[16];
         TrackVelocityBrushes = new SolidColorBrush[16, 128];
+        TrackVelocityBrushesLight = new SolidColorBrush[16, 128];
 
         var hues = new[]
         {
@@ -303,6 +324,14 @@ public static class TrackColorMapper
             brush.Freeze();
             TrackBrushes[i] = brush;
 
+            var lightBaseColor = Color.FromRgb(
+                (byte)Math.Max(0, color.R - 45),
+                (byte)Math.Max(0, color.G - 45),
+                (byte)Math.Max(0, color.B - 45));
+            var lightBrush = new SolidColorBrush(lightBaseColor);
+            lightBrush.Freeze();
+            TrackBrushesLight[i] = lightBrush;
+
             for (var velocity = 0; velocity < 128; velocity++)
             {
                 var factor = 0.5 + 0.5 * (velocity / 127.0);
@@ -312,6 +341,14 @@ public static class TrackColorMapper
                 var velocityBrush = new SolidColorBrush(Color.FromRgb(r, g, b));
                 velocityBrush.Freeze();
                 TrackVelocityBrushes[i, velocity] = velocityBrush;
+
+                var lightVelocityColor = Color.FromRgb(
+                    (byte)Math.Max(0, r - 40),
+                    (byte)Math.Max(0, g - 40),
+                    (byte)Math.Max(0, b - 40));
+                var lightVelocityBrush = new SolidColorBrush(lightVelocityColor);
+                lightVelocityBrush.Freeze();
+                TrackVelocityBrushesLight[i, velocity] = lightVelocityBrush;
             }
         }
     }
@@ -325,12 +362,29 @@ public static class TrackColorMapper
     }
 
     /// <summary>
+    /// Gets a frozen brush for the given track index tuned for light theme backgrounds.
+    /// </summary>
+    public static SolidColorBrush GetLightThemeBrush(int trackIndex)
+    {
+        return TrackBrushesLight[trackIndex % 16];
+    }
+
+    /// <summary>
     /// Gets a brush with velocity-modulated brightness for overlay mode.
     /// </summary>
     public static SolidColorBrush GetBrush(int trackIndex, byte velocity)
     {
         var index = trackIndex % 16;
         return TrackVelocityBrushes[index, velocity < 128 ? velocity : 127];
+    }
+
+    /// <summary>
+    /// Gets a brush with velocity-modulated brightness tuned for light theme backgrounds.
+    /// </summary>
+    public static SolidColorBrush GetLightThemeBrush(int trackIndex, byte velocity)
+    {
+        var index = trackIndex % 16;
+        return TrackVelocityBrushesLight[index, velocity < 128 ? velocity : 127];
     }
 
     private static Color HslToRgb(double hue, double saturation, double lightness)
