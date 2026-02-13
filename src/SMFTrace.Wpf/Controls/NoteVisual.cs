@@ -94,6 +94,9 @@ public sealed class LaneLayout
     /// <summary>Notes in this lane (paired for rendering).</summary>
     public List<PairedNote> Notes { get; } = [];
 
+    /// <summary>Longest note duration in this lane, in seconds.</summary>
+    public double MaxNoteDurationSeconds { get; set; }
+
     /// <summary>Active note timeline for keyboard highlighting.</summary>
     public LaneEventTimeline ActiveTimeline { get; set; } = new LaneEventTimeline([]);
 

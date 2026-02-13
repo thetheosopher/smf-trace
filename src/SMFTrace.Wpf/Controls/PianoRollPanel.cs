@@ -1304,6 +1304,9 @@ public class PianoRollPanel : FrameworkElement
                 Height = overlayHeight,
                 PitchLow = pitchLow,
                 PitchHigh = pitchHigh,
+                MaxNoteDurationSeconds = sortedNotes.Count > 0
+                    ? sortedNotes.Max(n => (n.EndTime - n.StartTime).TotalSeconds)
+                    : 0,
                 ActiveTimeline = new LaneEventTimeline(sortedNotes)
             };
 
@@ -1341,6 +1344,9 @@ public class PianoRollPanel : FrameworkElement
                     Height = laneHeight,
                     PitchLow = pitchLow,
                     PitchHigh = pitchHigh,
+                    MaxNoteDurationSeconds = sortedNotes.Count > 0
+                        ? sortedNotes.Max(n => (n.EndTime - n.StartTime).TotalSeconds)
+                        : 0,
                     ActiveTimeline = new LaneEventTimeline(sortedNotes)
                 };
 
@@ -1702,7 +1708,7 @@ public class PianoRollPanel : FrameworkElement
         var rowHeight = lane.Height / pitchCount;
         var useTrackColors = OverlayMode;
 
-        var startIndex = FindFirstVisibleNoteIndex(lane.Notes, leftTime);
+        var startIndex = FindFirstVisibleNoteIndex(lane.Notes, leftTime, lane.MaxNoteDurationSeconds);
         for (var i = startIndex; i < lane.Notes.Count; i++)
         {
             var note = lane.Notes[i];
@@ -1770,8 +1776,20 @@ public class PianoRollPanel : FrameworkElement
         }
     }
 
-    private static int FindFirstVisibleNoteIndex(List<PairedNote> notes, double leftTime)
+    private static int FindFirstVisibleNoteIndex(List<PairedNote> notes, double leftTime, double maxNoteDurationSeconds)
     {
+        if (notes.Count == 0)
+        {
+            return 0;
+        }
+
+        var safeMaxDuration = Math.Max(0, maxNoteDurationSeconds);
+        var minRelevantStart = leftTime - safeMaxDuration;
+        if (minRelevantStart <= 0)
+        {
+            return 0;
+        }
+
         var low = 0;
         var high = notes.Count - 1;
         var result = notes.Count;
@@ -1779,7 +1797,7 @@ public class PianoRollPanel : FrameworkElement
         while (low <= high)
         {
             var mid = low + (high - low) / 2;
-            if (notes[mid].StartTime.TotalSeconds >= leftTime)
+            if (notes[mid].StartTime.TotalSeconds >= minRelevantStart)
             {
                 result = mid;
                 high = mid - 1;
@@ -1790,13 +1808,13 @@ public class PianoRollPanel : FrameworkElement
             }
         }
 
-        var startIndex = result == notes.Count ? notes.Count - 1 : result;
-        while (startIndex > 0 && notes[startIndex - 1].EndTime.TotalSeconds >= leftTime)
+        var startIndex = result;
+        while (startIndex < notes.Count && notes[startIndex].EndTime.TotalSeconds < leftTime)
         {
-            startIndex--;
+            startIndex++;
         }
 
-        return Math.Max(startIndex, 0);
+        return startIndex;
     }
 
     private void RenderPlayhead()
