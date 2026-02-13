@@ -7,11 +7,14 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 ## Features
 
 - **Piano Roll View**: Left-to-right scrolling with a fixed playhead at 33% width, 30-second default visible window, and zoom controls
+- **Playlist Workflow**: Replace/append MIDI files, view metadata, and jump entries with previous/next navigation
 - **Diagnostics View**: See every event (including meta and SysEx) with filters and decoded details
 - **Deterministic Playback**: Verify exactly what is sent, in order, down to raw bytes
-- **Seek with State Rebuild**: Silent scrubbing with automatic bank/program/controller state restoration
-- **SysEx Safety**: Optional "Disable SysEx output" to prevent device reconfiguration while still allowing inspection
-- **Hot-plug Device Support**: Automatic detection of connected MIDI output devices
+- **Transport Controls**: Play/Pause/Stop plus Panic (All Notes Off + Reset Controllers) and loop playback
+- **Seek with State Rebuild**: Seek while paused or stopped with automatic channel/instrument state rebuild
+- **Tempo & Display Controls**: Signed BPM tempo adjustment, track mute/solo, overlay/compact modes, lyrics lane, and note/key visibility toggles
+- **SysEx Routing**: SysEx events are transmitted during playback and remain visible in diagnostics
+- **Device Persistence**: Restores the last selected MIDI output device when available
 
 ## Requirements
 
@@ -59,12 +62,14 @@ SMF Trace/
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+O` | Open MIDI file |
+| `Ctrl+Shift+O` | Add MIDI files to playlist |
+| `Ctrl+Shift+P` | Panic (All Notes Off) |
 | `Space` | Play / Pause |
 | `S` | Stop |
-| `Home` | Seek to start |
-| `Left/Right` | Nudge seek ±1s |
-| `Shift+Left/Right` | Nudge seek ±5s |
-| `Ctrl++` / `Ctrl+-` | Zoom in/out |
+| `Left/Right` | Previous / Next playlist item |
+| `L` | Toggle loop playback |
+| `+` / `-` | Horizontal zoom in/out |
+| `Shift+Plus` / `Shift+Minus` | Vertical zoom in/out |
 
 ## Documentation
 

@@ -1,6 +1,6 @@
 # SMF Trace — Professional Branding & Icon Concepts (v2)
 
-**App Name:** **SMF Trace**  
+**App Name:** **SMF Trace**
 **Tagline:** **See every event. Trust every tick.**
 
 This pack is tailored for a **MIDI-professional** audience: engineers, composers, live techs, integration specialists, and power users who need **deterministic, inspectable** MIDI playback.
@@ -13,12 +13,12 @@ This pack is tailored for a **MIDI-professional** audience: engineers, composers
 **SMF Trace** is a Standard MIDI File player and diagnostic workbench that streams events to your chosen output device while exposing a precise, timestamped trace of every message.
 
 ### Short product description (store/README)
-SMF Trace is a Windows desktop workbench for inspecting and playing Standard MIDI Files (.mid). It provides a high‑performance piano roll synchronized to playback and a live, filterable event trace with decoded fields and raw bytes—ideal for validating program/bank changes, controller automation, tempo/meta events, and SysEx routing.
+SMF Trace is a Windows desktop workbench for inspecting and playing Standard MIDI Files (.mid). It provides a high‑performance piano roll synchronized to playback and a live, filterable event trace with decoded fields and raw bytes—ideal for validating program/bank changes, controller automation, tempo/meta events, and SysEx event flow.
 
 ### “Why SMF Trace?” (for pros)
 - **Determinism:** You can verify exactly what is sent, in order, down to raw bytes.
 - **Observability:** Every event is visible (meta included) and correlated to time/tick.
-- **Operational safety:** Optional **Disable SysEx output** provides a single switch to prevent device reconfiguration while still allowing inspection.
+- **Operational confidence:** SysEx transmission and event visibility remain predictable during inspection and playback.
 
 ### “What is SMF?” (precise help blurb)
 > **SMF** stands for **Standard MIDI File** (*.mid). SMF stores time‑stamped MIDI event streams for reliable playback sequencing and can include multiple tracks, tempo and time signature meta events, track names, lyrics, and more. citeturn10search312turn10search306
@@ -44,20 +44,32 @@ Version {VERSION}  •  © {YEAR} SMF Trace
 
 ### Tabs
 - **Piano Roll**
+- **Playlist**
 - **Diagnostics**
 
 ### Toolbar
 - **Open…**
+- **Add to Playlist…**
 - **Play**
 - **Pause**
 - **Stop**
+- **Previous** / **Next**
+- **Loop Playback**
+- **Panic (All Notes Off)**
 - **Output Device:**
+- **Default Instrument:**
 - **Position:**
 - **Show Tempo (BPM)**
 - **Show Bars/Beats Grid**
-- **Render FPS:** 60 / 30
+- **Show Note Names**
+- **Show Piano Keys**
+- **Compact Pitch Range**
+- **Overlay Mode**
+- **Track Mute/Solo Panel**
+- **Lyrics Lane**
+- **Tempo Adjust (BPM ±)**
 - **Zoom In** / **Zoom Out**
-- **Disable SysEx output**
+- **Vertical Zoom In** / **Vertical Zoom Out**
 
 ### Status line (optional)
 - **Ready**
@@ -66,9 +78,7 @@ Version {VERSION}  •  © {YEAR} SMF Trace
 - **Running** • {Time} / {Duration}
 - **Paused** • {Time}
 - **Stopped**
-- **Scrubbing (muted output)**
-- **Rebuilding channel state…**
-- **SysEx output disabled**
+- **Loading…**
 
 ---
 
@@ -89,9 +99,27 @@ Pause playback and send **All Notes Off** to prevent stuck notes.
 ### Stop
 Stop playback, send **All Notes Off**, and reset position to start.
 
+### Panic
+Immediately sends **All Notes Off** and resets controllers.
+
 ### Seek / Position
-- Drag to scrub silently (no MIDI output).
-- Release to rebuild bank/program/controller state at the selected time.
+- Seek interaction is available while playback is paused or stopped.
+- Seeking rebuilds channel and instrument state at the selected time.
+
+### Add to Playlist…
+Append one or more MIDI files to the existing playlist.
+
+### Previous / Next
+Navigate within the playlist when multiple entries are present.
+
+### Loop Playback
+Loop single-file playback or wrap playlist playback to the first entry.
+
+### Default Instrument
+Select fallback program used when the file has no Program Change events.
+
+### Tempo Adjust (BPM ±)
+Apply a signed BPM offset to playback tempo.
 
 ### Show Tempo (BPM)
 Overlay the current tempo at the playhead.
@@ -99,20 +127,15 @@ Overlay the current tempo at the playhead.
 ### Show Bars/Beats Grid
 Render measure/beat grid lines derived from time signature meta events.
 
-### Render FPS
-Choose **60 FPS** for smoother visualization or **30 FPS** for lower resource usage.
-
-### Disable SysEx output
-When enabled, SysEx events are decoded and can be displayed, but are **not transmitted** to the output device.
-
 ---
 
 ## 5) Diagnostics View Copy (Professional)
 
 ### Filters
-- **Message Types** (multi-select)
+- **Notes / CC / PC / Meta / SysEx / Other**
 - **Meta events only**
 - **Show SysEx**
+- **Search**
 
 ### Auto-scroll behavior copy
 - **Auto‑scroll OFF** — click anywhere in the event list to re‑enable.
@@ -152,21 +175,19 @@ Select a MIDI output device to enable playback.
 **Output device unavailable**
 Playback stopped because the selected output device is no longer available.
 
-### SysEx suppressed (optional toast)
-**SysEx suppressed**
-SysEx output is disabled.
-
 ---
 
 ## 7) Shortcut Set (Professional defaults)
 
 - **Ctrl+O** — Open
+- **Ctrl+Shift+O** — Add files to playlist
+- **Ctrl+Shift+P** — Panic (All Notes Off)
 - **Space** — Play / Pause
 - **S** — Stop
-- **Home** — Seek to start
-- **Left/Right** — Nudge seek (±1s)
-- **Shift+Left/Right** — Nudge seek (±5s)
-- **Ctrl+Plus / Ctrl+Minus** — Zoom in/out
+- **Left/Right** — Previous / Next playlist item
+- **L** — Toggle loop playback
+- **Plus / Minus** — Horizontal zoom in/out
+- **Shift+Plus / Shift+Minus** — Vertical zoom in/out
 
 ---
 

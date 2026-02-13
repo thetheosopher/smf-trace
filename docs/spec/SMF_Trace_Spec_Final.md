@@ -10,10 +10,11 @@
 
 ## 1) Product Goal
 
-Build a Windows desktop application named **SMF Trace** that loads and plays **Standard MIDI Files (SMF, *.mid)**, streams the MIDI events to a selected output device, and provides two synchronized views:
+Build a Windows desktop application named **SMF Trace** that loads and plays **Standard MIDI Files (SMF, *.mid)**, streams the MIDI events to a selected output device, and provides synchronized playback views plus playlist management:
 
 1. A left-to-right scrolling **piano roll** with a fixed playhead.
 2. A **Diagnostics** view that reveals **every event** (including meta and SysEx), with filters and a detailed decode pane.
+3. A **Playlist** view for queueing and navigating multiple MIDI files.
 
 SMF Trace’s design goal is “observability for MIDI files”: users should be able to confirm *what* events exist, *when* they occur, and *exactly what* is being sent.
 
@@ -54,19 +55,25 @@ SMF Trace’s design goal is “observability for MIDI files”: users should be
 
 ### C) Playback + Seeking
 - Play / Pause / Stop.
+- Panic command sends All Notes Off and resets controllers.
 - Pause sends **All Notes Off**.
 - Stop sends **All Notes Off** and resets position to **time 0**.
+- Loop playback toggle is supported:
+  - Single-file mode loops the current file.
+  - Playlist mode advances to next entry and wraps to first when loop is enabled.
 - Seek slider updates continuously during playback.
-- Seek drag performs **silent scrubbing** (no MIDI output).
-- Seek release:
-  - Send All Notes Off
-  - Rebuild channel state at target tick
-  - Re-emit bank/program/controller state to device
-  - Resume playback only if it was previously playing
+- Direct seek interaction is available when playback is paused or stopped.
+- Seeking rebuilds channel state at the target tick.
 - Toggles:
   - Tempo (BPM) ON/OFF
   - Bars/Beats grid ON/OFF
-- No looping in v1.
+  - Note names ON/OFF
+  - Piano keys ON/OFF
+  - Compact pitch range ON/OFF
+  - Overlay mode ON/OFF
+  - Track mute/solo panel ON/OFF
+  - Lyrics lane ON/OFF (when lyrics are present)
+- Tempo adjustment slider applies signed BPM offset to playback tempo.
 
 ### D) Diagnostics Tab
 - Shows **all file events** (meta included).
@@ -75,25 +82,25 @@ SMF Trace’s design goal is “observability for MIDI files”: users should be
   - Disabled by manual scroll.
   - Re-enabled by click anywhere in list.
 - Filters day-1:
-  - message type filter
+  - category toggles: Notes, CC, Program Change, Meta, SysEx, Other
   - meta-only toggle
   - SysEx show/hide toggle
+  - text search filter
 - Details pane:
   - decoded fields + raw bytes.
 
-### E) SysEx Handling (with Safety)
-- Default behavior: **send SysEx** to output device.
-- Provide setting: **[ ] Disable SysEx output**
-  - If enabled: SysEx not sent, but may still be displayed (subject to show/hide).
+### E) SysEx Handling
+- SysEx events are transmitted to the selected output device during playback.
+- SysEx visibility in Diagnostics is controlled by the SysEx show/hide filter.
 
 ### F) MIDI Output Devices
-- Dropdown shows only **active** MIDI output devices.
-- Hot-plug updates list (device connect/disconnect).
-- Include **Microsoft GS Wavetable Synth** option.
+- Dropdown shows currently available MIDI output devices.
+- Last selected device name is persisted and restored when available.
+- Include **Microsoft GS Wavetable Synth** option when exposed by the host system.
 
 ### G) Performance
 - Large orchestral MIDI support.
-- Piano roll refresh target **60 FPS**, user-selectable **30 FPS** fallback.
+- Piano roll refresh target **60 FPS**.
 
 ---
 
@@ -102,18 +109,29 @@ SMF Trace’s design goal is “observability for MIDI files”: users should be
 ### Main Window
 Toolbar:
 - Open
+- Add files to playlist
 - Play / Pause / Stop
+- Previous / Next playlist item (visible when playlist has multiple entries)
+- Loop playback toggle
+- Panic (All Notes Off)
 - Device dropdown
+- Default instrument dropdown
 - Seek slider + time label (mm:ss.fff)
 - Toggle: Tempo display
 - Toggle: Bars/Beats grid
-- FPS selector: 60 / 30
+- Toggle: Note names
+- Toggle: Piano keys
+- Toggle: Compact pitch range
+- Toggle: Overlay mode
+- Toggle: Track mute/solo panel
+- Toggle: Lyrics lane (when lyrics exist)
+- Tempo adjustment slider (+/- BPM)
 - Zoom controls (+/-)
-- **Disable SysEx output** checkbox
 
 Body:
 - TabControl:
   - Piano Roll
+  - Playlist
   - Diagnostics
 
 ### Piano Roll Tab
@@ -121,10 +139,17 @@ Body:
 - 30s visible by default.
 - Lanes: (track, channel).
 - Lane header: Track name, Track index, Channel, instrument label at current time.
+- Optional track panel supports per-track mute/solo state.
+- Optional lyrics lane renders lyric meta events with active-line highlighting.
+
+### Playlist Tab
+- Displays queued MIDI files with metadata columns (duration, tempo, time signature, key, SMF type, track count, SysEx, lyrics, path).
+- Double-clicking an entry loads and plays that item.
+- Supports replace-playlist and append-to-playlist workflows.
 
 ### Diagnostics Tab
 - Virtualized list of events + details pane.
-- Filters for type/meta-only/SysEx show/hide.
+- Filters for category/meta-only/SysEx show-hide/search.
 - Click-anywhere to re-enable auto-scroll.
 
 ---
@@ -132,28 +157,32 @@ Body:
 ## 5) Acceptance Criteria
 
 1. SMF Type 0/1 loads and plays to selected MIDI output.
-2. Device dropdown updates on hot-plug; includes GS synth option.
+2. Device dropdown populates available devices and restores last selected device when available.
 3. Piano roll scrolls left→right with playhead at 33% width.
 4. Default view shows 30 seconds; zoom controls adjust time scale.
 5. Pitch grid shows octave emphasis and note labels.
 6. Lanes split by (track, channel).
 7. Notes colored by velocity.
 8. Program/bank display per channel; “(default)” when no program change seen.
-9. Seeking scrubs silently; release rebuilds state and resumes appropriately.
-10. Pause/Stop send All Notes Off; Stop resets to 0.
+9. Seek interaction is available when paused or stopped and rebuilds state at target position.
+10. Pause/Stop send All Notes Off; Stop resets to 0; Panic performs immediate note/reset-controllers action.
 11. Diagnostics shows all events; ordering ensures PC before NoteOn at same tick.
-12. Diagnostics filters + details pane function; click anywhere re-enables auto-scroll.
-13. SysEx sent by default; Disable SysEx output prevents transmission but not visibility.
-14. 60 FPS target with 30 FPS fallback.
+12. Diagnostics category/meta/SysEx/search filters and details pane function; click anywhere re-enables auto-scroll.
+13. SysEx events are transmitted during playback and can be shown/hidden in Diagnostics.
+14. Piano roll rendering targets 60 FPS.
+15. Playlist tab supports multi-file queue, previous/next navigation, and double-click play.
+16. Loop toggle loops single-file playback and wraps playlist playback.
+17. Tempo adjustment applies signed BPM offset and updates effective tempo display.
+18. Track mute/solo controls update active playback lanes.
 
 ---
 
 ## 6) Deliverables
 
-- `SMFTrace.sln` with projects:
+- `SMFTrace.slnx` with projects:
   - `SMFTrace.Core`
   - `SMFTrace.MidiInterop`
   - `SMFTrace.Wpf`
-- Settings persistence (device selection, FPS, grid toggles, Disable SysEx output).
+  - Settings persistence (device selection, window geometry, tempo/grid toggles, loop mode, tempo adjustment, default instrument, piano-roll display toggles, diagnostics filter state).
 - Unit tests for: ordering, tempo conversion, note pairing, seek-state rebuild.
 
