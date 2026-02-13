@@ -444,7 +444,7 @@
                 <ComboBox ItemsSource="{Binding DefaultInstruments}"
                           SelectedItem="{Binding SelectedDefaultInstrument}"
                           DisplayMemberPath="Name"
-                          MinWidth="220"
+                          MinWidth="165"
                           Margin="6,0,4,0"
                           ToolTip="Default Instrument"
                           VerticalAlignment="Center"
@@ -456,12 +456,7 @@
                      DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
                 <ToggleButton Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Compact lane pitch range to used notes"/>
                 <ToggleButton Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Overlay all tracks with distinct colors"/>
-                <ToggleButton Content="Mute/Solo" IsChecked="{Binding ShowTrackControls}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show track mute/solo"/>
                 <ToggleButton Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource IconToggleButtonStyle}"/>
-                <ToggleButton Content="No SysEx"
-                              IsChecked="{Binding DisableSysExOutput}"
-                              Style="{StaticResource IconToggleButtonStyle}"
-                              ToolTip="Disable SysEx output"/>
                 <ToggleButton Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show note names in lane headers"/>
                 <ToggleButton Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show piano keys in lane headers"/>
                 <ToggleButton Content="Lyrics"
@@ -470,6 +465,11 @@
                               ToolTip="Show lyrics lane"
                               Visibility="{Binding HasLyrics, Converter={StaticResource BoolToVisibility}}"/>
                 <ToggleButton Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource IconToggleButtonStyle}"/>
+                <ToggleButton Content="Mute/Solo" IsChecked="{Binding ShowTrackControls}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show track mute/solo"/>
+                <ToggleButton Content="No SysEx"
+                              IsChecked="{Binding DisableSysExOutput}"
+                              Style="{StaticResource IconToggleButtonStyle}"
+                              ToolTip="Disable SysEx output"/>
                 <Separator/>
                 <TextBlock Text="Tempo" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" Margin="6,0,4,0"/>
                 <Slider Minimum="{Binding MinTempoAdjustmentBpm}"

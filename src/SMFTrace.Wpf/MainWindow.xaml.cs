@@ -136,8 +136,7 @@ public partial class MainWindow : Window
                 break;
 
             case nameof(MainViewModel.IsLoading):
-            case nameof(MainViewModel.IsBusy):
-                Mouse.OverrideCursor = _viewModel.IsBusy ? Cursors.Wait : null;
+                Mouse.OverrideCursor = _viewModel.IsLoading ? Cursors.Wait : null;
                 break;
 
             case nameof(MainViewModel.IsDarkTheme):

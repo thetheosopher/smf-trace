@@ -2074,7 +2074,7 @@ public class PianoRollPanel : FrameworkElement
 
         var activeNotes = lane.LiveActiveNotes ?? lane.ActiveTimeline.ActiveNotes;
 
-        // Draw white key active highlights with notched shape (wrapping around black keys)
+        // Draw white key active highlights aligned to pitch row height
         for (var pitch = lane.PitchLow; pitch <= lane.PitchHigh; pitch++)
         {
             if (IsBlackKey(pitch) || !activeNotes[pitch])
@@ -2082,15 +2082,14 @@ public class PianoRollPanel : FrameworkElement
                 continue;
             }
 
-            var geo = CreateWhiteKeyHighlightGeometry(
-                pitch, lane.PitchLow, lane.PitchHigh,
-                lane.YOffset, lane.Height, rowHeight,
-                keyLeft, keyWidth, blackKeyWidth);
+            var relPitch = pitch - lane.PitchLow;
+            var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
+            var rect = new Rect(keyLeft, y, keyWidth, rowHeight);
 
-            // Soft outer glow via slightly thicker pen
-            dc.DrawGeometry(ThemedPianoActiveGlowBrush, null, geo);
+            // Soft outer glow
+            dc.DrawRectangle(ThemedPianoActiveGlowBrush, null, rect);
             // Main fill + edge highlight
-            dc.DrawGeometry(ThemedPianoActiveFillBrush, ThemedPianoActiveOuterPen, geo);
+            dc.DrawRectangle(ThemedPianoActiveFillBrush, ThemedPianoActiveOuterPen, rect);
         }
 
         // Draw black key active highlights on top
@@ -2489,7 +2488,14 @@ public class PianoRollPanel : FrameworkElement
 
     private void RenderOverlayTrackList(DrawingContext dc, double headerRight)
     {
-        var y = 8.0;
+        GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
+        var lyricsHeight = GetLyricsLaneHeight();
+        if (lyricsHeight > 0)
+        {
+            visibleTop = Math.Max(visibleTop, lyricsHeight);
+        }
+
+        var y = visibleTop + 8.0;
         var x = 4.0;
         const double lineHeight = 16.0;
         const double colorBoxSize = 10.0;
@@ -2507,7 +2513,7 @@ public class PianoRollPanel : FrameworkElement
         // Draw each track with its color
         for (var i = 0; i < _overlayTrackIndices.Count; i++)
         {
-            if (y + lineHeight > ActualHeight - 4)
+            if (y + lineHeight > visibleBottom - 4)
             {
                 // Show "..." if we run out of space
                 var moreText = new FormattedText(

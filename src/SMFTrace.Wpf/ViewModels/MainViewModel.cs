@@ -783,13 +783,21 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             initialChannelStates);
     }
 
-    public Task AddToPlaylistAsync(IEnumerable<string> filePaths)
+    public async Task AddToPlaylistAsync(IEnumerable<string> filePaths)
     {
         var files = FilterMidiFiles(filePaths).ToList();
         if (files.Count == 0)
         {
-            return Task.CompletedTask;
+            return;
         }
+
+        var wasPlaylistEmpty = PlaylistEntries.Count == 0;
+        var shouldAutoPlay = wasPlaylistEmpty
+            && !IsFileLoaded
+            && PlaybackState != PlaybackState.Playing
+            && !_isPlaylistTransition;
+
+        var firstAddedIndex = PlaylistEntries.Count;
 
         EnsurePlaylistParser();
         foreach (var file in files)
@@ -799,7 +807,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             StartMetadataParse(entry, _playlistParseCts!.Token);
         }
 
-        return Task.CompletedTask;
+        if (shouldAutoPlay && firstAddedIndex >= 0 && firstAddedIndex < PlaylistEntries.Count)
+        {
+            await PlayPlaylistIndexAsync(firstAddedIndex);
+        }
     }
 
     public async Task ReplacePlaylistAsync(IEnumerable<string> filePaths, bool autoPlay)
