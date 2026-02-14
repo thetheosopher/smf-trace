@@ -8,11 +8,11 @@
              mc:Ignorable="d"
              d:DesignHeight="450" d:DesignWidth="800"
              d:DataContext="{d:DesignInstance vm:DiagnosticsViewModel}"
-             Background="#252526">
+             Background="{DynamicResource WindowBackgroundBrush}">
 
     <UserControl.Resources>
         <Style TargetType="CheckBox" x:Key="FilterCheckBoxStyle">
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="Margin" Value="4,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
@@ -30,9 +30,9 @@
         </Grid.RowDefinitions>
 
         <!-- Filter Bar -->
-        <Border Grid.Row="0" Background="#2D2D30" Padding="8">
+        <Border Grid.Row="0" Background="{DynamicResource PanelBackgroundBrush}" Padding="8">
             <WrapPanel>
-                <TextBlock Text="Show:" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBlock Text="Show:" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <CheckBox Content="Notes" IsChecked="{Binding ShowNotes}" Style="{StaticResource FilterCheckBoxStyle}"/>
                 <CheckBox Content="CC" IsChecked="{Binding ShowControlChanges}" Style="{StaticResource FilterCheckBoxStyle}"/>
                 <CheckBox Content="PC" IsChecked="{Binding ShowProgramChanges}" Style="{StaticResource FilterCheckBoxStyle}"/>
@@ -46,9 +46,12 @@
 
                 <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="8,0"/>
 
-                <TextBlock Text="Search:" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <TextBlock Text="Search:" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                          Width="150"
+                         Background="{DynamicResource ControlBackgroundBrush}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         BorderBrush="{DynamicResource ControlBorderBrush}"
                          VerticalAlignment="Center"/>
             </WrapPanel>
         </Border>
@@ -78,21 +81,21 @@
                       VirtualizingPanel.ScrollUnit="Pixel"
                       GridLinesVisibility="Horizontal"
                       HeadersVisibility="Column"
-                      Background="#1E1E23"
-                      Foreground="White"
-                      RowBackground="#1E1E23"
-                      AlternatingRowBackground="#252526"
+                                            Background="{DynamicResource SurfaceBackgroundBrush}"
+                                            Foreground="{DynamicResource TextPrimaryBrush}"
+                                            RowBackground="{DynamicResource PlaylistRowBrush}"
+                                            AlternatingRowBackground="{DynamicResource PlaylistAltRowBrush}"
                       BorderThickness="0"
                       FontFamily="Consolas"
                       FontSize="12">
 
                 <DataGrid.ColumnHeaderStyle>
                     <Style TargetType="DataGridColumnHeader">
-                        <Setter Property="Background" Value="#3C3C3C"/>
-                        <Setter Property="Foreground" Value="White"/>
+                                                <Setter Property="Background" Value="{DynamicResource PlaylistHeaderBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                         <Setter Property="Padding" Value="8,4"/>
                         <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                        <Setter Property="BorderBrush" Value="#555"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource SurfaceBorderBrush}"/>
                     </Style>
                 </DataGrid.ColumnHeaderStyle>
 
@@ -100,8 +103,8 @@
                     <Style TargetType="DataGridRow">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                <Setter Property="Background" Value="#4A6B3A"/>
-                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Background" Value="{DynamicResource PlaylistSelectionBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -122,10 +125,10 @@
             <GridSplitter Grid.Column="1"
                           Width="5"
                           HorizontalAlignment="Stretch"
-                          Background="#3C3C3C"/>
+                          Background="{DynamicResource ControlBorderBrush}"/>
 
             <!-- Details Pane -->
-            <Border Grid.Column="2" Background="#1E1E23" Padding="8">
+            <Border Grid.Column="2" Background="{DynamicResource SurfaceBackgroundBrush}" Padding="8">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -134,7 +137,7 @@
 
                     <TextBlock Grid.Row="0"
                                Text="Event Details"
-                               Foreground="White"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                FontWeight="Bold"
                                FontSize="14"
                                Margin="0,0,0,8"/>
@@ -143,7 +146,7 @@
                         <TextBox Text="{Binding DetailText, Mode=OneWay}"
                                  IsReadOnly="True"
                                  Background="Transparent"
-                                 Foreground="LightGray"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  BorderThickness="0"
                                  FontFamily="Consolas"
                                  FontSize="12"
