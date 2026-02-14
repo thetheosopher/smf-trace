@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using SMFTrace.Core.Models;
@@ -347,6 +349,7 @@ public class PianoRollPanel : FrameworkElement
         {
             if ((bool)e.NewValue)
             {
+                panel.HideNoteTooltip();
                 panel.StartSmoothScrolling();
             }
             else
@@ -534,6 +537,12 @@ public class PianoRollPanel : FrameworkElement
     private bool _isSeekDragging;
     private Point _seekDragStartPoint;
     private TimeSpan _seekDragStartTime;
+
+    // Note tooltip fields
+    private Popup? _noteTooltipPopup;
+    private StackPanel? _noteTooltipPanel;
+    private Border? _noteTooltipBorder;
+    private List<PairedNote>? _lastTooltipNotes;
 
     // Cached resources
     private static readonly Pen PlayheadPen;
@@ -807,6 +816,12 @@ public class PianoRollPanel : FrameworkElement
             lane.InvalidateHeaderCache();
             lane.InvalidateNoteNameCache();
             lane.KeyboardDrawing = null;
+        }
+
+        // Re-theme tooltip if it's visible and rebuild content
+        if (_noteTooltipPopup is { IsOpen: true } && _lastTooltipNotes is { Count: > 0 })
+        {
+            BuildTooltipContent(_lastTooltipNotes);
         }
 
         MarkAllDirty();
@@ -1135,6 +1150,7 @@ public class PianoRollPanel : FrameworkElement
         _isSeekDragging = true;
         _seekDragStartPoint = point;
         _seekDragStartTime = CurrentTime;
+        HideNoteTooltip();
         CaptureMouse();
         SeekDragStarted?.Invoke(this, new PianoRollSeekEventArgs(_seekDragStartTime));
         e.Handled = true;
@@ -1144,19 +1160,28 @@ public class PianoRollPanel : FrameworkElement
     {
         base.OnMouseMove(e);
 
-        if (!_isSeekDragging || e.LeftButton != MouseButtonState.Pressed)
+        if (_isSeekDragging && e.LeftButton == MouseButtonState.Pressed)
         {
+            var point = e.GetPosition(this);
+            if (TryGetSeekTimeFromDrag(point, out var seekTime))
+            {
+                SeekDragDelta?.Invoke(this, new PianoRollSeekEventArgs(seekTime));
+                e.Handled = true;
+            }
             return;
         }
 
-        var point = e.GetPosition(this);
-        if (!TryGetSeekTimeFromDrag(point, out var seekTime))
+        // Show note tooltip when playback is not active
+        if (!IsPlaying)
         {
-            return;
+            UpdateNoteTooltip(e.GetPosition(this));
         }
+    }
 
-        SeekDragDelta?.Invoke(this, new PianoRollSeekEventArgs(seekTime));
-        e.Handled = true;
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        HideNoteTooltip();
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -2810,6 +2835,386 @@ public class PianoRollPanel : FrameworkElement
             ZoomOut();
 
         e.Handled = true;
+    }
+
+    #endregion
+
+    #region Note Tooltip
+
+    /// <summary>
+    /// Hit-tests the given point against all visible notes and returns matches.
+    /// </summary>
+    private List<PairedNote> HitTestNotes(Point point)
+    {
+        var results = new List<PairedNote>();
+
+        // Only hit-test in the note area (right of lane headers)
+        if (point.X < PianoRollSettings.LaneHeaderWidth || _lanes.Count == 0)
+        {
+            return results;
+        }
+
+        var viewWidth = ActualWidth - PianoRollSettings.LaneHeaderWidth;
+        if (viewWidth <= 0)
+        {
+            return results;
+        }
+
+        var pixelsPerSecond = viewWidth / WindowSeconds;
+        var leftTime = RenderTime.TotalSeconds - WindowSeconds * PianoRollSettings.PlayheadPosition;
+
+        // Convert mouse X to time
+        var mouseTime = leftTime + (point.X - PianoRollSettings.LaneHeaderWidth) / pixelsPerSecond;
+
+        foreach (var lane in _lanes)
+        {
+            // Check if point is within this lane's vertical bounds
+            if (point.Y < lane.YOffset || point.Y > lane.YOffset + lane.Height)
+            {
+                continue;
+            }
+
+            var pitchCount = lane.PitchCount;
+            var rowHeight = lane.Height / pitchCount;
+
+            // Convert mouse Y to pitch within this lane (inverted: low pitches at bottom)
+            var relY = point.Y - lane.YOffset;
+            var relPitch = (int)((lane.Height - relY) / rowHeight);
+            var mousePitch = lane.PitchLow + relPitch;
+
+            if (mousePitch < lane.PitchLow || mousePitch > lane.PitchHigh)
+            {
+                continue;
+            }
+
+            // Search for notes at this time and pitch
+            var rightTime = leftTime + WindowSeconds;
+            var startIndex = FindFirstVisibleNoteIndex(lane.Notes, leftTime, lane.MaxNoteDurationSeconds);
+
+            for (var i = startIndex; i < lane.Notes.Count; i++)
+            {
+                var note = lane.Notes[i];
+                if (note.StartTime.TotalSeconds > rightTime)
+                {
+                    break;
+                }
+
+                if (note.NoteNumber == mousePitch
+                    && mouseTime >= note.StartTime.TotalSeconds
+                    && mouseTime <= note.EndTime.TotalSeconds)
+                {
+                    results.Add(note);
+                }
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Updates the note tooltip based on current mouse position.
+    /// </summary>
+    private void UpdateNoteTooltip(Point mousePos)
+    {
+        var hitNotes = HitTestNotes(mousePos);
+
+        if (hitNotes.Count == 0)
+        {
+            HideNoteTooltip();
+            return;
+        }
+
+        // Check if the same notes are already shown (avoid rebuilding)
+        if (_lastTooltipNotes != null
+            && _lastTooltipNotes.Count == hitNotes.Count
+            && _lastTooltipNotes.SequenceEqual(hitNotes))
+        {
+            // Just update position
+            UpdateTooltipPosition(mousePos);
+            return;
+        }
+
+        _lastTooltipNotes = hitNotes;
+        EnsureTooltipPopup();
+        BuildTooltipContent(hitNotes);
+        UpdateTooltipPosition(mousePos);
+
+        _noteTooltipPopup!.IsOpen = true;
+    }
+
+    private void EnsureTooltipPopup()
+    {
+        if (_noteTooltipPopup != null)
+        {
+            return;
+        }
+
+        _noteTooltipPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+        };
+
+        _noteTooltipBorder = new Border
+        {
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(10, 8, 10, 8),
+            Child = _noteTooltipPanel,
+        };
+
+        ApplyTooltipTheme();
+
+        _noteTooltipPopup = new Popup
+        {
+            Child = _noteTooltipBorder,
+            AllowsTransparency = true,
+            Placement = PlacementMode.Relative,
+            PlacementTarget = this,
+            IsHitTestVisible = false,
+            StaysOpen = true,
+        };
+    }
+
+    private void ApplyTooltipTheme()
+    {
+        if (_noteTooltipBorder == null)
+        {
+            return;
+        }
+
+        if (IsDarkTheme)
+        {
+            _noteTooltipBorder.Background = new SolidColorBrush(Color.FromArgb(240, 30, 30, 36));
+            _noteTooltipBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(70, 70, 80));
+            _noteTooltipBorder.BorderThickness = new Thickness(1);
+        }
+        else
+        {
+            _noteTooltipBorder.Background = new SolidColorBrush(Color.FromArgb(245, 250, 250, 252));
+            _noteTooltipBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(190, 190, 200));
+            _noteTooltipBorder.BorderThickness = new Thickness(1);
+        }
+    }
+
+    private void BuildTooltipContent(List<PairedNote> notes)
+    {
+        if (_noteTooltipPanel == null)
+        {
+            return;
+        }
+
+        _noteTooltipPanel.Children.Clear();
+        ApplyTooltipTheme();
+
+        var textColor = IsDarkTheme
+            ? new SolidColorBrush(Color.FromRgb(220, 220, 228))
+            : new SolidColorBrush(Color.FromRgb(30, 30, 40));
+        var dimColor = IsDarkTheme
+            ? new SolidColorBrush(Color.FromRgb(150, 150, 165))
+            : new SolidColorBrush(Color.FromRgb(100, 100, 120));
+        var accentColor = IsDarkTheme
+            ? new SolidColorBrush(Color.FromRgb(100, 160, 255))
+            : new SolidColorBrush(Color.FromRgb(30, 80, 180));
+
+        for (var i = 0; i < notes.Count; i++)
+        {
+            if (i > 0)
+            {
+                // Separator between multiple notes
+                _noteTooltipPanel.Children.Add(new Border
+                {
+                    Height = 1,
+                    Margin = new Thickness(0, 6, 0, 6),
+                    Background = IsDarkTheme
+                        ? new SolidColorBrush(Color.FromRgb(60, 60, 70))
+                        : new SolidColorBrush(Color.FromRgb(210, 210, 220)),
+                });
+            }
+
+            var note = notes[i];
+            var notePanel = new StackPanel { Orientation = Orientation.Vertical };
+
+            // Track name as header (matches the lane header / overlay track key)
+            var trackName = GetTrackNameForNote(note);
+            notePanel.Children.Add(new TextBlock
+            {
+                Text = trackName,
+                Foreground = accentColor,
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 0, 4),
+            });
+
+            // Details grid
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var noteName = GetNoteNameShort(note.NoteNumber);
+            var duration = note.EndTime - note.StartTime;
+            var durationStr = FormatNoteDuration(duration);
+            var startStr = FormatNoteTime(note.StartTime);
+            var instrumentName = GetInstrumentNameForNote(note);
+
+            AddTooltipRow(grid, 0, "Note", $"{noteName}  (#{note.NoteNumber})", dimColor, textColor);
+            AddTooltipRow(grid, 1, "Instrument", instrumentName, dimColor, textColor);
+            AddTooltipRow(grid, 2, "Velocity", note.Velocity.ToString(System.Globalization.CultureInfo.InvariantCulture), dimColor, textColor);
+            AddTooltipRow(grid, 3, "Channel", (note.Channel + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), dimColor, textColor);
+            AddTooltipRow(grid, 4, "Track", (note.TrackIndex + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), dimColor, textColor);
+            AddTooltipRow(grid, 5, "Start", $"{startStr}  (tick {note.StartTick})", dimColor, textColor);
+            AddTooltipRow(grid, 6, "Duration", durationStr, dimColor, textColor);
+
+            notePanel.Children.Add(grid);
+            _noteTooltipPanel.Children.Add(notePanel);
+        }
+    }
+
+    private static void AddTooltipRow(
+        Grid grid,
+        int row,
+        string label,
+        string value,
+        Brush labelBrush,
+        Brush valueBrush)
+    {
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var labelBlock = new TextBlock
+        {
+            Text = label,
+            Foreground = labelBrush,
+            FontSize = 11.5,
+            Margin = new Thickness(0, 1, 0, 1),
+        };
+        Grid.SetRow(labelBlock, row);
+        Grid.SetColumn(labelBlock, 0);
+        grid.Children.Add(labelBlock);
+
+        var valueBlock = new TextBlock
+        {
+            Text = value,
+            Foreground = valueBrush,
+            FontSize = 11.5,
+            Margin = new Thickness(0, 1, 0, 1),
+        };
+        Grid.SetRow(valueBlock, row);
+        Grid.SetColumn(valueBlock, 2);
+        grid.Children.Add(valueBlock);
+    }
+
+    private string GetTrackNameForNote(PairedNote note)
+    {
+        // In overlay mode, use the same names shown in the overlay track key
+        if (OverlayMode)
+        {
+            var idx = _overlayTrackIndices.IndexOf(note.TrackIndex);
+            if (idx >= 0 && idx < _overlayTrackNames.Count)
+            {
+                return _overlayTrackNames[idx];
+            }
+        }
+
+        // In lane mode, use the lane's track name (same as lane header)
+        foreach (var lane in _lanes)
+        {
+            if (lane.Id.TrackIndex == note.TrackIndex && lane.Id.Channel == note.Channel)
+            {
+                if (!string.IsNullOrEmpty(lane.TrackName))
+                {
+                    return lane.TrackName;
+                }
+
+                break;
+            }
+        }
+
+        // Fall back to generic label
+        return note.TrackIndex < _tracks.Count && !string.IsNullOrEmpty(_tracks[note.TrackIndex].Name)
+            ? _tracks[note.TrackIndex].Name!
+            : $"Track {note.TrackIndex + 1}";
+    }
+
+    private string GetInstrumentNameForNote(PairedNote note)
+    {
+        // In overlay mode there's only one lane, so look up by channel state directly
+        if (OverlayMode)
+        {
+            if (note.Channel < _channelStates.Length)
+            {
+                return _channelStates[note.Channel].InstrumentDisplayName;
+            }
+
+            return "(default)";
+        }
+
+        // In lane mode, find the matching lane's instrument name
+        foreach (var lane in _lanes)
+        {
+            if (lane.Id.TrackIndex == note.TrackIndex && lane.Id.Channel == note.Channel)
+            {
+                if (!string.IsNullOrEmpty(lane.InstrumentName) && lane.InstrumentName != "(default)")
+                {
+                    return lane.InstrumentName;
+                }
+
+                break;
+            }
+        }
+
+        // Fall back to channel state
+        if (note.Channel < _channelStates.Length)
+        {
+            return _channelStates[note.Channel].InstrumentDisplayName;
+        }
+
+        return "(default)";
+    }
+
+    private static string FormatNoteDuration(TimeSpan duration)
+    {
+        if (duration.TotalSeconds < 1)
+        {
+            return $"{duration.TotalMilliseconds:F0} ms";
+        }
+
+        if (duration.TotalMinutes < 1)
+        {
+            return $"{duration.TotalSeconds:F2} s";
+        }
+
+        return $"{(int)duration.TotalMinutes}:{duration.Seconds:D2}.{duration.Milliseconds:D3}";
+    }
+
+    private static string FormatNoteTime(TimeSpan time)
+    {
+        if (time.TotalMinutes < 1)
+        {
+            return $"{time.TotalSeconds:F3} s";
+        }
+
+        return $"{(int)time.TotalMinutes}:{time.Seconds:D2}.{time.Milliseconds:D3}";
+    }
+
+    private void UpdateTooltipPosition(Point mousePos)
+    {
+        if (_noteTooltipPopup == null)
+        {
+            return;
+        }
+
+        // Position tooltip offset from cursor
+        _noteTooltipPopup.HorizontalOffset = mousePos.X + 14;
+        _noteTooltipPopup.VerticalOffset = mousePos.Y + 14;
+    }
+
+    private void HideNoteTooltip()
+    {
+        if (_noteTooltipPopup is { IsOpen: true })
+        {
+            _noteTooltipPopup.IsOpen = false;
+        }
+
+        _lastTooltipNotes = null;
     }
 
     #endregion
