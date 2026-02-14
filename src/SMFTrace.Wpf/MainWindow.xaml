@@ -715,7 +715,7 @@
                     </DataGrid.Columns>
                 </DataGrid>
             </TabItem>
-            <TabItem Header="Diagnostics">
+            <TabItem Header="Events">
                 <views:DiagnosticsView x:Name="DiagnosticsView"
                                        DataContext="{Binding Diagnostics}"/>
             </TabItem>
