@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -267,6 +268,11 @@ public partial class MainWindow : Window
 
     private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (IsTextInputFocused())
+        {
+            return;
+        }
+
         if (e.Key == Key.Delete && MainTabs.SelectedIndex == 1)
         {
             var selectedEntries = PlaylistGrid.SelectedItems
@@ -316,6 +322,88 @@ public partial class MainWindow : Window
             }
             e.Handled = true;
             return;
+        }
+
+        if (e.Key == Key.D && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            _viewModel.IsDarkTheme = !_viewModel.IsDarkTheme;
+            e.Handled = true;
+            return;
+        }
+
+        var isCtrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+        var isShiftPressed = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+
+        if (isCtrl && isShiftPressed)
+        {
+            if (e.Key == Key.C)
+            {
+                _viewModel.CompactPitchRange = !_viewModel.CompactPitchRange;
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.V)
+            {
+                _viewModel.OverlayMode = !_viewModel.OverlayMode;
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.X)
+            {
+                _viewModel.DisableSysExOutput = !_viewModel.DisableSysExOutput;
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (isCtrl && !isShiftPressed)
+        {
+            if (e.Key == Key.G)
+            {
+                _viewModel.ShowBarsBeatsGrid = !_viewModel.ShowBarsBeatsGrid;
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.N)
+            {
+                _viewModel.ShowNoteNames = !_viewModel.ShowNoteNames;
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.K)
+            {
+                _viewModel.ShowPianoKeys = !_viewModel.ShowPianoKeys;
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Y)
+            {
+                if (_viewModel.HasLyrics)
+                {
+                    _viewModel.ShowLyricsLane = !_viewModel.ShowLyricsLane;
+                }
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.T)
+            {
+                _viewModel.ShowTempo = !_viewModel.ShowTempo;
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.M)
+            {
+                _viewModel.ShowTrackControls = !_viewModel.ShowTrackControls;
+                e.Handled = true;
+                return;
+            }
         }
 
         if (e.Key == Key.Space)
@@ -472,5 +560,22 @@ public partial class MainWindow : Window
         var ext = Path.GetExtension(filePath);
         return ext.Equals(".mid", StringComparison.OrdinalIgnoreCase) ||
                ext.Equals(".midi", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTextInputFocused()
+    {
+        var focused = Keyboard.FocusedElement;
+
+        if (focused is TextBoxBase or PasswordBox)
+        {
+            return true;
+        }
+
+        if (focused is ComboBox comboBox && comboBox.IsEditable)
+        {
+            return true;
+        }
+
+        return false;
     }
 }

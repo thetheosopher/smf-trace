@@ -372,7 +372,43 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public string ThemeIconGlyph => IsDarkTheme ? "\uE706" : "\uE708";
 
-    public string ThemeToggleToolTip => IsDarkTheme ? "Switch to light mode" : "Switch to dark mode";
+    public string ThemeToggleToolTip => IsDarkTheme ? "Switch to light mode (Ctrl+D)" : "Switch to dark mode (Ctrl+D)";
+
+    public string OpenToolTip { get; } = "Open (Ctrl+O)";
+
+    public string AddToPlaylistToolTip { get; } = "Add to playlist (Ctrl+Shift+O)";
+
+    public string PlayToolTip { get; } = "Play (Space)";
+
+    public string PauseToolTip { get; } = "Pause (Space)";
+
+    public string StopToolTip { get; } = "Stop (S)";
+
+    public string PreviousToolTip { get; } = "Previous (Left Arrow)";
+
+    public string NextToolTip { get; } = "Next (Right Arrow)";
+
+    public string LoopPlaybackToolTip { get; } = "Loop playback (L)";
+
+    public string PanicToolTip { get; } = "Panic (All Notes Off) (Ctrl+Shift+P)";
+
+    public string CompactPitchRangeToolTip { get; } = "Compact lane pitch range to used notes (Ctrl+Shift+C)";
+
+    public string OverlayModeToolTip { get; } = "Overlay all tracks with distinct colors (Ctrl+Shift+V)";
+
+    public string ShowBarsBeatsGridToolTip { get; } = "Show bar/beat grid (Ctrl+G)";
+
+    public string ShowTrackControlsToolTip { get; } = "Show track mute/solo (Ctrl+M)";
+
+    public string DisableSysExOutputToolTip { get; } = "Disable SysEx output (Ctrl+Shift+X)";
+
+    public string ShowNoteNamesToolTip { get; } = "Show note names in lane headers (Ctrl+N)";
+
+    public string ShowPianoKeysToolTip { get; } = "Show piano keys in lane headers (Ctrl+K)";
+
+    public string ShowLyricsLaneToolTip { get; } = "Show lyrics lane (Ctrl+Y)";
+
+    public string ShowTempoToolTip { get; } = "Show tempo badge (Ctrl+T)";
 
     public bool ShowPianoKeys
     {

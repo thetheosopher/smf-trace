@@ -397,35 +397,35 @@
         <!-- Toolbar -->
         <ToolBarTray Grid.Row="0" Background="{DynamicResource PanelBackgroundBrush}" Margin="2">
             <ToolBar Background="{DynamicResource PanelBackgroundBrush}" Band="0" BandIndex="0">
-                <Button Command="{Binding OpenCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Open">
+                <Button Command="{Binding OpenCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="{Binding OpenToolTip}">
                     <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE8E5;"/>
                 </Button>
-                <Button Command="{Binding AddFilesCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Add to playlist">
+                <Button Command="{Binding AddFilesCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="{Binding AddToPlaylistToolTip}">
                     <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE710;"/>
                 </Button>
                 <Separator/>
-                <Button Command="{Binding PlayCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Play">
+                <Button Command="{Binding PlayCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="{Binding PlayToolTip}">
                     <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE768;"/>
                 </Button>
-                <Button Command="{Binding PauseCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Pause">
+                <Button Command="{Binding PauseCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="{Binding PauseToolTip}">
                     <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE769;"/>
                 </Button>
-                <Button Command="{Binding StopCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Stop">
+                <Button Command="{Binding StopCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="{Binding StopToolTip}">
                     <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE71A;"/>
                 </Button>
                 <StackPanel Orientation="Horizontal"
                             VerticalAlignment="Center"
                             Visibility="{Binding ShowPlaylistNavigation, Converter={StaticResource BoolToVisibility}}">
-                    <Button Command="{Binding PreviousCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Previous">
+                    <Button Command="{Binding PreviousCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="{Binding PreviousToolTip}">
                         <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE892;"/>
                     </Button>
-                    <Button Command="{Binding NextCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Next">
+                    <Button Command="{Binding NextCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="{Binding NextToolTip}">
                         <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE893;"/>
                     </Button>
                 </StackPanel>
                 <ToggleButton IsChecked="{Binding LoopPlayback}"
                               Style="{StaticResource IconToggleButtonStyle}"
-                              ToolTip="Loop playback">
+                              ToolTip="{Binding LoopPlaybackToolTip}">
                     <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="&#xE8EE;"/>
                 </ToggleButton>
                 <ToggleButton IsChecked="{Binding IsDarkTheme}"
@@ -434,7 +434,7 @@
                     <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="15" Text="{Binding ThemeIconGlyph}"/>
                 </ToggleButton>
                 <Separator/>
-                <Button Command="{Binding PanicCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="Panic (All Notes Off)">
+                <Button Command="{Binding PanicCommand}" Style="{StaticResource IconButtonStyle}" ToolTip="{Binding PanicToolTip}">
                     <TextBlock FontFamily="Segoe UI Symbol" FontSize="14" Text="⚠"/>
                 </Button>
                 <Separator/>
@@ -458,22 +458,22 @@
                      Band="0"
                      BandIndex="1"
                      DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
-                <ToggleButton Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Compact lane pitch range to used notes"/>
-                <ToggleButton Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Overlay all tracks with distinct colors"/>
-                <ToggleButton Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource IconToggleButtonStyle}"/>
-                <ToggleButton Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show note names in lane headers"/>
-                <ToggleButton Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show piano keys in lane headers"/>
+                <ToggleButton Content="Compact" IsChecked="{Binding CompactPitchRange}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="{Binding CompactPitchRangeToolTip}"/>
+                <ToggleButton Content="Overlay" IsChecked="{Binding OverlayMode}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="{Binding OverlayModeToolTip}"/>
+                <ToggleButton Content="Grid" IsChecked="{Binding ShowBarsBeatsGrid}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="{Binding ShowBarsBeatsGridToolTip}"/>
+                <ToggleButton Content="Notes" IsChecked="{Binding ShowNoteNames}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="{Binding ShowNoteNamesToolTip}"/>
+                <ToggleButton Content="Keys" IsChecked="{Binding ShowPianoKeys}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="{Binding ShowPianoKeysToolTip}"/>
                 <ToggleButton Content="Lyrics"
                               IsChecked="{Binding ShowLyricsLane}"
                               Style="{StaticResource IconToggleButtonStyle}"
-                              ToolTip="Show lyrics lane"
+                              ToolTip="{Binding ShowLyricsLaneToolTip}"
                               Visibility="{Binding HasLyrics, Converter={StaticResource BoolToVisibility}}"/>
-                <ToggleButton Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource IconToggleButtonStyle}"/>
-                <ToggleButton Content="Mute/Solo" IsChecked="{Binding ShowTrackControls}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="Show track mute/solo"/>
+                <ToggleButton Content="Tempo" IsChecked="{Binding ShowTempo}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="{Binding ShowTempoToolTip}"/>
+                <ToggleButton Content="Mute/Solo" IsChecked="{Binding ShowTrackControls}" Style="{StaticResource IconToggleButtonStyle}" ToolTip="{Binding ShowTrackControlsToolTip}"/>
                 <ToggleButton Content="No SysEx"
                               IsChecked="{Binding DisableSysExOutput}"
                               Style="{StaticResource IconToggleButtonStyle}"
-                              ToolTip="Disable SysEx output"/>
+                              ToolTip="{Binding DisableSysExOutputToolTip}"/>
                 <Separator/>
                 <TextBlock Text="Tempo" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" Margin="6,0,4,0"/>
                 <Slider Minimum="{Binding MinTempoAdjustmentBpm}"
