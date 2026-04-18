@@ -38,6 +38,23 @@ dotnet test
 dotnet run --project src/SMFTrace.Wpf
 ```
 
+## Build Output Layout
+
+Build artifacts are centralized under the repository root `output/` folder:
+
+- `output/bin/<ProjectName>/<Configuration>/<TargetFramework>/...`
+- `output/obj/<ProjectName>/<Configuration>/<TargetFramework>/...`
+
+For example, after a Debug build, the WPF app executable is typically at:
+
+- `output/bin/SMFTrace.Wpf/Debug/net10.0-windows/SMFTrace.exe`
+
+To create a source archive that excludes temporary build artifacts (`output/`, `bin/`, `obj/`):
+
+```powershell
+$root = (Resolve-Path .).Path; $zip = Join-Path $root 'SMFTrace-source.zip'; if (Test-Path $zip) { Remove-Item $zip -Force }; Get-ChildItem $root -Recurse -File | Where-Object { $_.FullName -notmatch '\\(output|bin|obj)\\' -and $_.Name -ne 'SMFTrace-source.zip' } | Compress-Archive -DestinationPath $zip
+```
+
 ## Project Structure
 
 ```

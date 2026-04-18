@@ -46,6 +46,7 @@ project.fragment.lock.json
 artifacts/
 publish/
 out/
+output/
 
 # Test results
 [Tt]est[Rr]esult*/

@@ -7,21 +7,25 @@
 			"command": "dotnet",
 			"args": [
 				"build",
-				"c:\\Projects\\other\\SMF Trace\\SMFTrace.slnx"
+				"c:\\Projects\\Applications\\SMF Trace\\SMFTrace.slnx"
 			],
 			"problemMatcher": [],
 			"group": "build"
 		},
 		{
-			"label": "build-solution",
+			"label": "test-solution",
 			"type": "shell",
 			"command": "dotnet",
 			"args": [
-				"build",
-				"c:\\Projects\\other\\SMF Trace\\SMFTrace.slnx"
+				"test",
+				"c:\\Projects\\Applications\\SMF Trace\\SMFTrace.slnx",
+				"--no-build"
 			],
-			"problemMatcher": [],
-			"group": "build"
+			"isBackground": false,
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "test"
 		}
 	]
 }
