@@ -25,7 +25,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 ```powershell
 # Clone the repository
-git clone https://github.com/your-org/smf-trace.git
+git clone https://github.com/thetheosopher/smf-trace.git
 cd smf-trace
 
 # Build the solution
