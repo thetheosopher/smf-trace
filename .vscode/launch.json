@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build-solution",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/output/bin/SMFTrace.Wpf/Debug/net10.0-windows/SMFTrace.dll",
+            "program": "${workspaceFolder}/output/bin/SMFTrace.Wpf/Debug/net10.0-windows/SMFTrace.exe",
             "args": [],
             "cwd": "${workspaceFolder}/src/SMFTrace.Wpf",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
