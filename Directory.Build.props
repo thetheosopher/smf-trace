@@ -18,6 +18,8 @@
     <Description>See every event. Trust every tick.</Description>
     <Copyright>© 2026 SMF Trace</Copyright>
     <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/thetheosopher/smf-trace</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <PropertyGroup>

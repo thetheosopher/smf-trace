@@ -4,6 +4,7 @@
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-WPF-0B5CAD)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-1F2937)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 **See every event. Trust every tick.**
 
@@ -19,6 +20,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 | Item | Value |
 | --- | --- |
 | Current release | `0.9.0` |
+| License | MIT |
 | Targets | `net10.0`, `net10.0-windows` |
 | SDK | `.NET 10.0.x` (`global.json` pins `10.0.102` and allows feature-band roll-forward) |
 | Verified build | `.NET SDK 10.0.202` |
@@ -191,6 +193,10 @@ For the default `win-x64` package, the zip contains a single file:
 - [Product Specification](docs/spec/SMF_Trace_Spec_Final.md)
 - [Technical Design](docs/spec/SMF_Trace_Companion_Technical_Final.md)
 - [Branding and UI Copy](docs/spec/SMF_Trace_Branding_Pro_Icon_Concepts_v2.md)
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for the full text.
 
 ---
 
