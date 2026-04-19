@@ -4,66 +4,18 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
-$projectPath = Join-Path $repoRoot 'src\SMFTrace.Wpf\SMFTrace.Wpf.csproj'
-$packageRoot = Join-Path $repoRoot "output\portable\SMFTrace.Wpf\$Configuration\$RuntimeIdentifier"
-$publishRoot = Join-Path $packageRoot 'publish'
-$zipPath = Join-Path $packageRoot "SMFTrace-portable-$RuntimeIdentifier.zip"
+. (Join-Path $PSScriptRoot 'release-common.ps1')
 
-if (Test-Path $publishRoot) {
-    Remove-Item $publishRoot -Recurse -Force
+$repoRoot = Get-SMFTraceRepositoryRoot -ScriptRoot $PSScriptRoot
+$projectPath = Get-SMFTraceProjectPath -RepositoryRoot $repoRoot
+$layout = Get-SMFTraceReleaseLayout -RepositoryRoot $repoRoot -Configuration $Configuration -RuntimeIdentifier $RuntimeIdentifier
+
+try {
+    Invoke-SMFTracePublish -ProjectPath $projectPath -Configuration $Configuration -RuntimeIdentifier $RuntimeIdentifier -PublishRoot $layout.PublishRoot | Out-Null
+    New-SMFTracePortablePackage -PublishRoot $layout.PublishRoot -ZipPath $layout.PortableZipPath
 }
-
-if (Test-Path $zipPath) {
-    Remove-Item $zipPath -Force
+finally {
+    Remove-PathIfPresent -Path $layout.PublishRoot
 }
-
-New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
-
-$publishArguments = @(
-    'publish'
-    $projectPath
-    '-c'
-    $Configuration
-    '-r'
-    $RuntimeIdentifier
-    '--self-contained'
-    'true'
-    '-p:PublishSingleFile=true'
-    '-p:IncludeNativeLibrariesForSelfExtract=true'
-    '-p:EnableCompressionInSingleFile=true'
-    '-p:DebugSymbols=false'
-    '-p:DebugType=None'
-    '-o'
-    $publishRoot
-)
-
-& dotnet @publishArguments
-
-$nonWindowsArtifacts = @()
-
-if ($RuntimeIdentifier -like 'win-*') {
-    $nonWindowsArtifacts = Get-ChildItem -Path $publishRoot -File | Where-Object {
-        $_.Extension -in @('.dylib', '.so')
-    }
-
-    foreach ($artifact in $nonWindowsArtifacts) {
-        Remove-Item $artifact.FullName -Force
-    }
-}
-
-$publishedFiles = Get-ChildItem -Path $publishRoot -File | Sort-Object Name
-$publishedFileList = $publishedFiles.Name -join ', '
-
-if ($nonWindowsArtifacts.Count -gt 0) {
-    $removedArtifacts = $nonWindowsArtifacts.Name -join ', '
-    Write-Host "Removed non-Windows publish artifacts: $removedArtifacts"
-}
-
-Write-Host "Published files: $publishedFileList"
-
-Compress-Archive -Path (Join-Path $publishRoot '*') -DestinationPath $zipPath -Force
-Remove-Item $publishRoot -Recurse -Force
-
-Write-Host "Portable package created at $zipPath"

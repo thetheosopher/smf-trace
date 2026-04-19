@@ -6,17 +6,26 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
-    <Version>0.9.0</Version>
-    <AssemblyVersion>0.9.0.0</AssemblyVersion>
-    <FileVersion>0.9.0.0</FileVersion>
-    <InformationalVersion>0.9.0</InformationalVersion>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
+    <BuildYear>$([System.DateTime]::UtcNow.ToString('yyyy'))</BuildYear>
+    <CopyrightOwner>Michael A. McCloskey</CopyrightOwner>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>BuildYear</_Parameter1>
+      <_Parameter2>$(BuildYear)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
 
   <PropertyGroup>
     <Authors>SMF Trace Contributors</Authors>
     <Product>SMF Trace</Product>
     <Description>See every event. Trust every tick.</Description>
-    <Copyright>© 2026 SMF Trace</Copyright>
+    <Copyright>© $(BuildYear) $(CopyrightOwner)</Copyright>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/thetheosopher/smf-trace</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

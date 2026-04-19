@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.IO;
 using System.Threading.Tasks;
 using System.Linq;
@@ -6,8 +7,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using SMFTrace.Wpf.Controls;
+using SMFTrace.Wpf.Views;
 using SMFTrace.Wpf.ViewModels;
 
 namespace SMFTrace.Wpf;
@@ -19,7 +22,13 @@ namespace SMFTrace.Wpf;
 public partial class MainWindow : Window
 #pragma warning restore CA1001
 {
+    private const int AboutSystemMenuId = 0x1FF0;
+    private const int WmSysCommand = 0x0112;
+    private const uint MfSeparator = 0x00000800;
+    private const uint MfString = 0x00000000;
+
     private readonly MainViewModel _viewModel;
+    private HwndSource? _windowSource;
 
     public MainWindow()
     {
@@ -31,6 +40,7 @@ public partial class MainWindow : Window
 
         // Apply window position/size from settings
         ApplyWindowSettings();
+        SourceInitialized += OnSourceInitialized;
 
         // Subscribe to property changes to update piano roll
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -89,6 +99,27 @@ public partial class MainWindow : Window
             s.WindowLeft = Left;
             s.WindowTop = Top;
         }
+    }
+
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        var windowHandle = new WindowInteropHelper(this).Handle;
+        if (windowHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var systemMenu = GetSystemMenu(windowHandle, false);
+        if (systemMenu == IntPtr.Zero)
+        {
+            return;
+        }
+
+        _ = AppendMenu(systemMenu, MfSeparator, nuint.Zero, null);
+        _ = AppendMenu(systemMenu, MfString, (nuint)AboutSystemMenuId, "About SMF Trace...");
+
+        _windowSource = HwndSource.FromHwnd(windowHandle);
+        _windowSource?.AddHook(WndProc);
     }
 
     private void OnStateChanged(object? sender, EventArgs e)
@@ -213,6 +244,12 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         Mouse.OverrideCursor = null;
+        if (_windowSource != null)
+        {
+            _windowSource.RemoveHook(WndProc);
+            _windowSource = null;
+        }
+
         _viewModel.LiveNoteChanged -= OnLiveNoteChanged;
         _viewModel.AllNotesCleared -= OnAllNotesCleared;
         PianoRoll.SeekDragStarted -= OnPianoRollSeekDragStarted;
@@ -554,6 +591,27 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ShowAboutDialog()
+    {
+        var aboutWindow = new AboutWindow(new AboutViewModel(), _viewModel.IsDarkTheme)
+        {
+            Owner = this
+        };
+
+        _ = aboutWindow.ShowDialog();
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WmSysCommand && (wParam.ToInt32() & 0xFFF0) == AboutSystemMenuId)
+        {
+            Dispatcher.BeginInvoke(ShowAboutDialog);
+            handled = true;
+        }
+
+        return IntPtr.Zero;
+    }
+
 
     private static bool IsMidiFile(string filePath)
     {
@@ -578,4 +636,11 @@ public partial class MainWindow : Window
 
         return false;
     }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AppendMenu(IntPtr hMenu, uint uFlags, nuint uIdNewItem, string? lpNewItem);
 }

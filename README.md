@@ -1,6 +1,6 @@
 # SMF Trace
 
-![Release](https://img.shields.io/badge/release-0.9.0-0f766e)
+![Release](https://img.shields.io/badge/release-1.0.0-0f766e)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-WPF-0B5CAD)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-1F2937)
@@ -19,7 +19,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 | Item | Value |
 | --- | --- |
-| Current release | `0.9.0` |
+| Current release | `1.0.0` |
 | License | MIT |
 | Targets | `net10.0`, `net10.0-windows` |
 | SDK | `.NET 10.0.x` (`global.json` pins `10.0.102` and allows feature-band roll-forward) |
@@ -39,7 +39,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 | Version | Status | Date | Notes |
 | --- | --- | --- | --- |
-| `0.9.0` | Current release | 2026-04 | .NET 10 solution, WPF desktop app, synchronized piano roll, playlist metadata, diagnostics filters, and portable `win-x64` packaging. |
+| `1.0.0` | Current release | 2026-04 | .NET 10 solution, WPF desktop app, synchronized piano roll, playlist metadata, diagnostics filters, and portable `win-x64` packaging. |
 
 ## Product Features
 
@@ -101,7 +101,7 @@ flowchart LR
 | `src/SMFTrace.Core` | MIDI file models, file loading, event ordering, channel snapshots, and sequencer engine. |
 | `src/SMFTrace.MidiInterop` | Windows MIDI device enumeration and output adapters. |
 | `src/SMFTrace.Wpf` | Desktop application, piano roll control, playlist UI, events tab, and settings persistence. |
-| `src/SMFTrace.Installer` | WiX installer authoring for packaged builds. |
+| `src/SMFTrace.Installer` | Inno Setup installer authoring for packaged release builds. |
 | `tests/SMFTrace.Core.Tests` | Sequencer, ordering, loader, and state snapshot tests. |
 | `tests/SMFTrace.MidiInterop.Tests` | Interop test project scaffold. |
 | `tests/SMFTrace.Wpf.Tests` | Diagnostics, note pairing, and settings tests. |
@@ -113,7 +113,8 @@ flowchart LR
 
 - Windows 10 or later.
 - .NET SDK 10.0.x.
-- PowerShell for the portable packaging script.
+- PowerShell for the release packaging scripts.
+- Inno Setup 6 for the installer-producing release build.
 
 ### Standard Developer Flow
 
@@ -135,6 +136,28 @@ dotnet run --project src/SMFTrace.Wpf/SMFTrace.Wpf.csproj -c Debug
 | `build-solution` | `dotnet build SMFTrace.slnx` |
 | `test-solution` | `dotnet test SMFTrace.slnx --no-build` |
 | `portable-build` | `powershell -NoProfile -ExecutionPolicy Bypass -File build/portable-build.ps1` |
+| `release-build` | `powershell -NoProfile -ExecutionPolicy Bypass -File build/release-build.ps1` |
+
+### Release Packages
+
+Create both release artifacts from a shared self-contained single-file publish:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File build/release-build.ps1
+```
+
+If `ISCC.exe` is not on `PATH`, point the script at a local Inno Setup 6 installation explicitly:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File build/release-build.ps1 -InnoCompilerPath "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+```
+
+The release build produces:
+
+- `output/release/SMFTrace.Wpf/Release/win-x64/SMFTrace-setup-win-x64.exe`
+- `output/release/SMFTrace.Wpf/Release/win-x64/SMFTrace-portable-win-x64.zip`
+
+The Inno Setup installer uses a startup mode selection that lets the user install for the current user or all users. The portable zip and the installer payload both come from the same self-contained single-file publish of `SMFTrace.exe`.
 
 ### Portable Package
 
@@ -144,11 +167,11 @@ Create a self-contained single-file Windows x64 zip:
 powershell -NoProfile -ExecutionPolicy Bypass -File build/portable-build.ps1
 ```
 
-The portable build publishes `SMFTrace.exe` as a single-file app, bundles the .NET runtime and native Windows runtime dependencies into the executable, enables single-file compression, and removes non-Windows native package assets from the Windows package.
+The portable build uses the same self-contained single-file publish settings as the full release build, bundling the .NET runtime and native Windows dependencies into `SMFTrace.exe`, enabling single-file compression, and removing non-Windows native package assets from the Windows package.
 
 The package is written to:
 
-- `output/portable/SMFTrace.Wpf/Release/win-x64/SMFTrace-portable-win-x64.zip`
+- `output/release/SMFTrace.Wpf/Release/win-x64/SMFTrace-portable-win-x64.zip`
 
 For the default `win-x64` package, the zip contains a single file:
 
@@ -159,7 +182,8 @@ For the default `win-x64` package, the zip contains a single file:
 | Output | Location |
 | --- | --- |
 | WPF app executable | `output/bin/SMFTrace.Wpf/Debug/net10.0-windows/SMFTrace.exe` |
-| Portable zip | `output/portable/SMFTrace.Wpf/Release/win-x64/SMFTrace-portable-win-x64.zip` |
+| Release installer | `output/release/SMFTrace.Wpf/Release/win-x64/SMFTrace-setup-win-x64.exe` |
+| Portable zip | `output/release/SMFTrace.Wpf/Release/win-x64/SMFTrace-portable-win-x64.zip` |
 | Intermediate artifacts | `output/obj/<ProjectName>/<Configuration>/<TargetFramework>/...` |
 
 ## Keyboard Shortcuts

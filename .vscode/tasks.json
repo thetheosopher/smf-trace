@@ -40,6 +40,20 @@
 			],
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "release-build",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\build\\release-build.ps1"
+			],
+			"problemMatcher": [],
+			"group": "build"
 		}
 	]
 }
