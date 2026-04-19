@@ -26,6 +26,20 @@
 				"$msCompile"
 			],
 			"group": "test"
+		},
+		{
+			"label": "portable-build",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\build\\portable-build.ps1"
+			],
+			"problemMatcher": [],
+			"group": "build"
 		}
 	]
 }
