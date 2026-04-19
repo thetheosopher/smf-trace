@@ -9,6 +9,11 @@
 
 SMF Trace is a Windows desktop workbench for inspecting and playing Standard MIDI Files (`.mid`, `.midi`). It combines a synchronized piano roll, playlist-first playback workflow, and an event-focused diagnostics surface so you can validate exactly what a file contains and what the engine sends to a MIDI output device.
 
+## Preview
+
+![SMF Trace main window screenshot](docs/MainWindow.PNG)
+![SMF Trace event display screenshot](docs/EventDisplay.png)
+
 ## At a Glance
 
 | Item | Value |
