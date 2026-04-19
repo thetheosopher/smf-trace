@@ -131,15 +131,21 @@ dotnet run --project src/SMFTrace.Wpf/SMFTrace.Wpf.csproj -c Debug
 
 ### Portable Package
 
-Create a self-contained Windows x64 zip:
+Create a self-contained single-file Windows x64 zip:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File build/portable-build.ps1
 ```
 
+The portable build publishes `SMFTrace.exe` as a single-file app, bundles the .NET runtime and native Windows runtime dependencies into the executable, enables single-file compression, and removes non-Windows native package assets from the Windows package.
+
 The package is written to:
 
 - `output/portable/SMFTrace.Wpf/Release/win-x64/SMFTrace-portable-win-x64.zip`
+
+For the default `win-x64` package, the zip contains a single file:
+
+- `SMFTrace.exe`
 
 ### Build Outputs
 

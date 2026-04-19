@@ -21,7 +21,47 @@ if (Test-Path $zipPath) {
 
 New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
 
-dotnet publish $projectPath -c $Configuration -r $RuntimeIdentifier --self-contained true -o $publishRoot
+$publishArguments = @(
+    'publish'
+    $projectPath
+    '-c'
+    $Configuration
+    '-r'
+    $RuntimeIdentifier
+    '--self-contained'
+    'true'
+    '-p:PublishSingleFile=true'
+    '-p:IncludeNativeLibrariesForSelfExtract=true'
+    '-p:EnableCompressionInSingleFile=true'
+    '-p:DebugSymbols=false'
+    '-p:DebugType=None'
+    '-o'
+    $publishRoot
+)
+
+& dotnet @publishArguments
+
+$nonWindowsArtifacts = @()
+
+if ($RuntimeIdentifier -like 'win-*') {
+    $nonWindowsArtifacts = Get-ChildItem -Path $publishRoot -File | Where-Object {
+        $_.Extension -in @('.dylib', '.so')
+    }
+
+    foreach ($artifact in $nonWindowsArtifacts) {
+        Remove-Item $artifact.FullName -Force
+    }
+}
+
+$publishedFiles = Get-ChildItem -Path $publishRoot -File | Sort-Object Name
+$publishedFileList = $publishedFiles.Name -join ', '
+
+if ($nonWindowsArtifacts.Count -gt 0) {
+    $removedArtifacts = $nonWindowsArtifacts.Name -join ', '
+    Write-Host "Removed non-Windows publish artifacts: $removedArtifacts"
+}
+
+Write-Host "Published files: $publishedFileList"
 
 Compress-Archive -Path (Join-Path $publishRoot '*') -DestinationPath $zipPath -Force
 Remove-Item $publishRoot -Recurse -Force
