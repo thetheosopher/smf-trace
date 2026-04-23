@@ -6,7 +6,9 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-1F2937)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-**See every event. Trust every tick.**
+☕ [Buy Me A Coffee](https://buymeacoffee.com/theosopher)
+
+**No-nonsense, MIDI playback powerhouse**
 
 SMF Trace is a Windows desktop workbench for inspecting and playing Standard MIDI Files (`.mid`, `.midi`). It combines a synchronized piano roll, playlist-first playback workflow, and an event-focused diagnostics surface so you can validate exactly what a file contains and what the engine sends to a MIDI output device.
 
@@ -224,4 +226,4 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for the f
 
 ---
 
-© 2026 SMF Trace
+© 2026 Michael A. McCloskey

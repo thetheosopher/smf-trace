@@ -18,12 +18,14 @@
   #define OutputBaseFilename "SMFTrace-setup-win-x64"
 #endif
 
+#define BuildYear GetDateTimeString('yyyy', '', '')
+
 [Setup]
 AppId={{5A4C4F69-4DF2-4C25-8C6B-0E9E2E5B8E9A}
 AppName=SMFTrace
 AppVersion={#AppVersion}
 AppVerName=SMFTrace {#AppVersion}
-AppPublisher=SMF Trace Contributors
+AppPublisher=Michael A. McCloskey
 AppPublisherURL=https://github.com/thetheosopher/smf-trace
 AppSupportURL=https://github.com/thetheosopher/smf-trace/issues
 AppUpdatesURL=https://github.com/thetheosopher/smf-trace/releases
@@ -46,6 +48,7 @@ VersionInfoVersion={#FileVersion}
 VersionInfoProductName=SMFTrace
 VersionInfoProductVersion={#AppVersion}
 VersionInfoDescription=SMFTrace Setup
+VersionInfoCopyright=© {#BuildYear} Michael A. McCloskey
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
