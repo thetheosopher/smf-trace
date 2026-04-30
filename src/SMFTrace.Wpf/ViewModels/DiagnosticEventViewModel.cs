@@ -12,7 +12,6 @@ namespace SMFTrace.Wpf.ViewModels;
 public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
 #pragma warning restore CA1711
 {
-    private bool _isCurrent;
     private readonly MidiEventBase _event;
     private readonly string _eventType;
     private readonly string _channel;
@@ -79,20 +78,6 @@ public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
     /// <summary>Category for filtering.</summary>
     public EventCategory Category => _category;
 
-    /// <summary>Whether this event is at the current playback position.</summary>
-    public bool IsCurrent
-    {
-        get => _isCurrent;
-        set
-        {
-            if (_isCurrent != value)
-            {
-                _isCurrent = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -119,6 +104,7 @@ public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
         PolyPressureEvent => "Poly Pressure",
         MetaEvent meta => $"Meta: {meta.TypeName}",
         SysExEvent => "SysEx",
+        OtherMidiEvent other => other.EventTypeName,
         _ => "Unknown"
     };
 
@@ -139,6 +125,7 @@ public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
         PolyPressureEvent pp => $"Key {pp.NoteNumber} Pressure {pp.Pressure}",
         MetaEvent meta => GetMetaSummary(meta),
         SysExEvent sysex => $"[{sysex.Data.Length} bytes] Mfr: {FormatHexBytes(sysex.ManufacturerId)}",
+        OtherMidiEvent other => other.Summary,
         _ => ""
     };
 
@@ -150,6 +137,7 @@ public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
         PitchBendEvent or ChannelPressureEvent or PolyPressureEvent => EventCategory.Other,
         MetaEvent => EventCategory.Meta,
         SysExEvent => EventCategory.SysExCategory,
+        OtherMidiEvent => EventCategory.Other,
         _ => EventCategory.Other
     };
 
@@ -185,7 +173,7 @@ public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
         return meta.MetaType switch
         {
             0x00 => $"Seq#", // Sequence Number
-            0x01 or 0x02 or 0x03 or 0x04 or 0x05 or 0x06 or 0x07 => TruncateText(meta.TextContent), // Text events
+            0x01 or 0x02 or 0x03 or 0x04 or 0x05 or 0x06 or 0x07 or 0x08 or 0x09 => TruncateText(meta.TextContent), // Text events
             0x20 => $"Channel", // Channel Prefix
             0x2F => "", // End of Track
             0x51 => $"{meta.Bpm:F1} BPM", // Set Tempo

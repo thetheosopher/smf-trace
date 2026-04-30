@@ -9,22 +9,40 @@ namespace SMFTrace.Core.Tests;
 /// </summary>
 public class MockSequencerOutput : ISequencerOutput
 {
+    private readonly object _sync = new();
     private readonly List<(byte Status, byte Data1, byte Data2)> _messages = [];
     private readonly List<byte[]> _sysExMessages = [];
+    private readonly TaskCompletionSource _sysExSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _allNotesOffCount;
 
-    public IReadOnlyList<(byte Status, byte Data1, byte Data2)> Messages => _messages;
-    public IReadOnlyList<byte[]> SysExMessages => _sysExMessages;
+    public IReadOnlyList<(byte Status, byte Data1, byte Data2)> Messages
+    {
+        get { lock (_sync) return _messages.ToArray(); }
+    }
+
+    public IReadOnlyList<byte[]> SysExMessages
+    {
+        get { lock (_sync) return _sysExMessages.Select(message => message.ToArray()).ToArray(); }
+    }
+
     public int AllNotesOffCount => _allNotesOffCount;
 
     public void SendShortMessage(byte status, byte data1, byte data2)
     {
-        _messages.Add((status, data1, data2));
+        lock (_sync)
+        {
+            _messages.Add((status, data1, data2));
+        }
     }
 
     public void SendSysEx(ReadOnlySpan<byte> payload)
     {
-        _sysExMessages.Add(payload.ToArray());
+        lock (_sync)
+        {
+            _sysExMessages.Add(payload.ToArray());
+        }
+
+        _sysExSent.TrySetResult();
     }
 
     public void AllNotesOff()
@@ -34,10 +52,16 @@ public class MockSequencerOutput : ISequencerOutput
 
     public void Clear()
     {
-        _messages.Clear();
-        _sysExMessages.Clear();
+        lock (_sync)
+        {
+            _messages.Clear();
+            _sysExMessages.Clear();
+        }
+
         _allNotesOffCount = 0;
     }
+
+    public Task WaitForSysExAsync(TimeSpan timeout) => _sysExSent.Task.WaitAsync(timeout);
 }
 
 public class SequencerEngineTests
@@ -302,7 +326,7 @@ public class SequencerEngineTests
     }
 
     [Fact]
-    public void SysExIsSentByDefault()
+    public async Task SysExIsSentByDefault()
     {
         // Arrange
         var fileData = CreateSysExFileData();
@@ -312,24 +336,32 @@ public class SequencerEngineTests
 
         // Act
         engine.Play();
-        Thread.Sleep(75);
+        await output.WaitForSysExAsync(TimeSpan.FromSeconds(1));
 
         // Assert
         Assert.NotEmpty(output.SysExMessages);
     }
 
     [Fact]
-    public void DisableSysExOutputSuppressesTransmission()
+    public async Task DisableSysExOutputSuppressesTransmission()
     {
         // Arrange
         var fileData = CreateSysExFileData();
         using var engine = new SequencerEngine(fileData, new PlaybackOptions { DisableSysExOutput = true });
         var output = new MockSequencerOutput();
         engine.SetOutput(output);
+        var dispatched = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        engine.EventDispatched += (_, e) =>
+        {
+            if (e.Event is SysExEvent)
+            {
+                dispatched.TrySetResult();
+            }
+        };
 
         // Act
         engine.Play();
-        Thread.Sleep(75);
+        await dispatched.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         // Assert
         Assert.Empty(output.SysExMessages);

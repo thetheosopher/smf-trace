@@ -99,17 +99,6 @@
                     </Style>
                 </DataGrid.ColumnHeaderStyle>
 
-                <DataGrid.RowStyle>
-                    <Style TargetType="DataGridRow">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource PlaylistSelectionBrush}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </DataGrid.RowStyle>
-
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="50"/>
                     <DataGridTextColumn Header="Time" Binding="{Binding TimeDisplay}" Width="80"/>

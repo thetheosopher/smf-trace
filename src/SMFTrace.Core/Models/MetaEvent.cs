@@ -22,6 +22,8 @@ public sealed record MetaEvent : MidiEventBase
         0x05 => "Lyric",
         0x06 => "Marker",
         0x07 => "Cue Point",
+        0x08 => "Program Name",
+        0x09 => "Device Name",
         0x20 => "Channel Prefix",
         0x21 => "Port Prefix",
         0x2F => "End of Track",

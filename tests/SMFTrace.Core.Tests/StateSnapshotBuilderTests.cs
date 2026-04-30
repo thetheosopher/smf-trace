@@ -64,6 +64,40 @@ public class StateSnapshotBuilderTests
             Velocity = 100
         };
 
+    private static PitchBendEvent CreatePitchBend(long tick, byte channel, ushort value) =>
+        new()
+        {
+            AbsoluteTick = tick,
+            TrackIndex = 0,
+            OriginalIndex = 0,
+            RawBytes = [],
+            Channel = channel,
+            Value = value
+        };
+
+    private static ChannelPressureEvent CreateChannelPressure(long tick, byte channel, byte pressure) =>
+        new()
+        {
+            AbsoluteTick = tick,
+            TrackIndex = 0,
+            OriginalIndex = 0,
+            RawBytes = [],
+            Channel = channel,
+            Pressure = pressure
+        };
+
+    private static PolyPressureEvent CreatePolyPressure(long tick, byte channel, byte noteNumber, byte pressure) =>
+        new()
+        {
+            AbsoluteTick = tick,
+            TrackIndex = 0,
+            OriginalIndex = 0,
+            RawBytes = [],
+            Channel = channel,
+            NoteNumber = noteNumber,
+            Pressure = pressure
+        };
+
     private static ProgramChangeEvent CreateProgramChangeOnTrack(long tick, int trackIndex, byte channel, byte program) =>
         new()
         {
@@ -305,5 +339,30 @@ public class StateSnapshotBuilderTests
         Assert.Equal(10, states[0].Program);
         Assert.True(states[0].Controllers.TryGetValue(7, out var value));
         Assert.Equal(64, value);
+    }
+
+    [Fact]
+    public void RebuildStateAtTickTracksPressurePitchBendAndSources()
+    {
+        // Arrange
+        var events = new List<MidiEventBase>
+        {
+            CreatePitchBend(100, 0, 9000),
+            CreateChannelPressure(200, 0, 55),
+            CreatePolyPressure(300, 0, 64, 70)
+        };
+        var builder = new StateSnapshotBuilder(events);
+
+        // Act
+        var states = builder.RebuildStateAtTick(350);
+
+        // Assert
+        var state = states[0];
+        Assert.Equal(9000, state.PitchBend);
+        Assert.Equal(55, state.ChannelPressure);
+        Assert.Equal(70, state.PolyPressure[64]);
+        Assert.Equal(0, state.PitchBendSource?.EventIndex);
+        Assert.Equal(1, state.ChannelPressureSource?.EventIndex);
+        Assert.Equal(2, state.PolyPressureSources[64].EventIndex);
     }
 }

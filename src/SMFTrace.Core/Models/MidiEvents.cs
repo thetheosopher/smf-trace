@@ -22,6 +22,20 @@ public abstract record MidiEventBase
 }
 
 /// <summary>
+/// Source location for a value captured in the channel-state snapshot.
+/// </summary>
+public sealed record StateValueSource(int EventIndex, long Tick, int TrackIndex, int OriginalIndex, string EventType)
+{
+    /// <summary>Fallback source used for values supplied by application defaults.</summary>
+    public static StateValueSource DefaultInstrument { get; } = new(-1, 0, -1, -1, "Default instrument");
+
+    /// <summary>Short source label suitable for diagnostics tables.</summary>
+    public string DisplayText => EventIndex >= 0
+        ? $"#{EventIndex} tick {Tick}"
+        : EventType;
+}
+
+/// <summary>
 /// Base class for channel voice messages.
 /// </summary>
 public abstract record ChannelEventBase : MidiEventBase
@@ -112,4 +126,16 @@ public sealed record PolyPressureEvent : ChannelEventBase
 
     /// <summary>Pressure value (0-127).</summary>
     public required byte Pressure { get; init; }
+}
+
+/// <summary>
+/// MIDI event preserved for diagnostics when no richer SMF Trace model exists.
+/// </summary>
+public sealed record OtherMidiEvent : MidiEventBase
+{
+    /// <summary>Display name for the original DryWetMIDI event type.</summary>
+    public required string EventTypeName { get; init; }
+
+    /// <summary>Optional human-readable summary.</summary>
+    public string Summary { get; init; } = string.Empty;
 }

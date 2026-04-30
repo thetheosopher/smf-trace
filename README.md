@@ -8,7 +8,7 @@
 
 ☕ [Buy Me A Coffee](https://buymeacoffee.com/theosopher)
 
-**No-nonsense, MIDI playback powerhouse**
+SMF Trace is a no-nonsense MIDI playback powerhouse.
 
 SMF Trace is a Windows desktop workbench for inspecting and playing Standard MIDI Files (`.mid`, `.midi`). It combines a synchronized piano roll, playlist-first playback workflow, and an event-focused diagnostics surface so you can validate exactly what a file contains and what the engine sends to a MIDI output device.
 

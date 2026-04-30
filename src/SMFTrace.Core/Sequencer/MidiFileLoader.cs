@@ -6,6 +6,7 @@ using DryNoteOffEvent = Melanchall.DryWetMidi.Core.NoteOffEvent;
 using DryControlChangeEvent = Melanchall.DryWetMidi.Core.ControlChangeEvent;
 using DryProgramChangeEvent = Melanchall.DryWetMidi.Core.ProgramChangeEvent;
 using DryPitchBendEvent = Melanchall.DryWetMidi.Core.PitchBendEvent;
+using DryMetaEvent = Melanchall.DryWetMidi.Core.MetaEvent;
 using NoteOnEvent = SMFTrace.Core.Models.NoteOnEvent;
 using NoteOffEvent = SMFTrace.Core.Models.NoteOffEvent;
 using ControlChangeEvent = SMFTrace.Core.Models.ControlChangeEvent;
@@ -15,6 +16,7 @@ using ChannelPressureEvent = SMFTrace.Core.Models.ChannelPressureEvent;
 using PolyPressureEvent = SMFTrace.Core.Models.PolyPressureEvent;
 using SysExEvent = SMFTrace.Core.Models.SysExEvent;
 using MetaEvent = SMFTrace.Core.Models.MetaEvent;
+using OtherMidiEvent = SMFTrace.Core.Models.OtherMidiEvent;
 using TrackInfo = SMFTrace.Core.Models.TrackInfo;
 using MidiEventBase = SMFTrace.Core.Models.MidiEventBase;
 
@@ -256,6 +258,8 @@ public static class MidiFileLoader
         int originalIndex,
         TimeSpan time)
     {
+        var rawBytes = GetRawBytes(midiEvent);
+
         return midiEvent switch
         {
             DryNoteOnEvent noteOn when noteOn.Velocity == 0 => new NoteOffEvent
@@ -264,7 +268,7 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 Channel = (byte)noteOn.Channel,
                 NoteNumber = (byte)noteOn.NoteNumber,
                 Velocity = 0
@@ -275,7 +279,7 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 Channel = (byte)noteOn.Channel,
                 NoteNumber = (byte)noteOn.NoteNumber,
                 Velocity = (byte)noteOn.Velocity
@@ -286,7 +290,7 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 Channel = (byte)noteOff.Channel,
                 NoteNumber = (byte)noteOff.NoteNumber,
                 Velocity = (byte)noteOff.Velocity
@@ -297,7 +301,7 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 Channel = (byte)cc.Channel,
                 ControllerNumber = (byte)cc.ControlNumber,
                 Value = (byte)cc.ControlValue
@@ -308,7 +312,7 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 Channel = (byte)pc.Channel,
                 ProgramNumber = (byte)pc.ProgramNumber
             },
@@ -318,7 +322,7 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 Channel = (byte)pb.Channel,
                 Value = pb.PitchValue
             },
@@ -328,7 +332,7 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 Channel = (byte)ca.Channel,
                 Pressure = (byte)ca.AftertouchValue
             },
@@ -338,7 +342,7 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 Channel = (byte)na.Channel,
                 NoteNumber = (byte)na.NoteNumber,
                 Pressure = (byte)na.AftertouchValue
@@ -349,8 +353,17 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 Data = [0xF0, .. sysex.Data]
+            },
+            EscapeSysExEvent sysex => new SysExEvent
+            {
+                AbsoluteTick = absoluteTick,
+                TrackIndex = trackIndex,
+                OriginalIndex = originalIndex,
+                Time = time,
+                RawBytes = rawBytes,
+                Data = rawBytes.Length > 0 ? rawBytes : [0xF7, .. sysex.Data]
             },
             BaseTextEvent textEvent => new MetaEvent
             {
@@ -358,9 +371,19 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 MetaType = GetMetaType(textEvent),
                 Data = System.Text.Encoding.UTF8.GetBytes(textEvent.Text ?? "")
+            },
+            SequenceNumberEvent sequenceNumber => new MetaEvent
+            {
+                AbsoluteTick = absoluteTick,
+                TrackIndex = trackIndex,
+                OriginalIndex = originalIndex,
+                Time = time,
+                RawBytes = rawBytes,
+                MetaType = 0x00,
+                Data = [(byte)(sequenceNumber.Number >> 8), (byte)sequenceNumber.Number]
             },
             SetTempoEvent tempo => new MetaEvent
             {
@@ -368,7 +391,7 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 MetaType = 0x51,
                 Data = [(byte)(tempo.MicrosecondsPerQuarterNote >> 16),
                         (byte)(tempo.MicrosecondsPerQuarterNote >> 8),
@@ -380,7 +403,7 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 MetaType = 0x58,
                 Data = [(byte)timeSig.Numerator,
                         (byte)Math.Log2(timeSig.Denominator),
@@ -393,9 +416,29 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 MetaType = 0x59,
                 Data = [(byte)keySig.Key, (byte)keySig.Scale]
+            },
+            SequencerSpecificEvent sequencerSpecific => new MetaEvent
+            {
+                AbsoluteTick = absoluteTick,
+                TrackIndex = trackIndex,
+                OriginalIndex = originalIndex,
+                Time = time,
+                RawBytes = rawBytes,
+                MetaType = 0x7F,
+                Data = sequencerSpecific.Data
+            },
+            UnknownMetaEvent unknownMeta => new MetaEvent
+            {
+                AbsoluteTick = absoluteTick,
+                TrackIndex = trackIndex,
+                OriginalIndex = originalIndex,
+                Time = time,
+                RawBytes = rawBytes,
+                MetaType = unknownMeta.StatusByte,
+                Data = unknownMeta.Data
             },
             EndOfTrackEvent => new MetaEvent
             {
@@ -403,11 +446,21 @@ public static class MidiFileLoader
                 TrackIndex = trackIndex,
                 OriginalIndex = originalIndex,
                 Time = time,
-                RawBytes = GetRawBytes(midiEvent),
+                RawBytes = rawBytes,
                 MetaType = 0x2F,
                 Data = []
             },
-            _ => null // Ignore other event types
+            DryMetaEvent => CreateMetaEventFromRawBytes(midiEvent, trackIndex, absoluteTick, originalIndex, time, rawBytes),
+            _ => new OtherMidiEvent
+            {
+                AbsoluteTick = absoluteTick,
+                TrackIndex = trackIndex,
+                OriginalIndex = originalIndex,
+                Time = time,
+                RawBytes = rawBytes,
+                EventTypeName = midiEvent.GetType().Name,
+                Summary = midiEvent.ToString() ?? string.Empty
+            }
         };
     }
 
@@ -420,12 +473,86 @@ public static class MidiFileLoader
         LyricEvent => 0x05,
         MarkerEvent => 0x06,
         CuePointEvent => 0x07,
+        ProgramNameEvent => 0x08,
+        DeviceNameEvent => 0x09,
         _ => 0x01
     };
 
+    private static MetaEvent CreateMetaEventFromRawBytes(
+        MidiEvent midiEvent,
+        int trackIndex,
+        long absoluteTick,
+        int originalIndex,
+        TimeSpan time,
+        byte[] rawBytes)
+    {
+        var metaType = TryParseRawMetaEvent(rawBytes, out var parsedMetaType, out var parsedData)
+            ? parsedMetaType
+            : (byte)0x7F;
+
+        return new MetaEvent
+        {
+            AbsoluteTick = absoluteTick,
+            TrackIndex = trackIndex,
+            OriginalIndex = originalIndex,
+            Time = time,
+            RawBytes = rawBytes,
+            MetaType = metaType,
+            Data = parsedData.Length > 0 ? parsedData : System.Text.Encoding.UTF8.GetBytes(midiEvent.ToString() ?? string.Empty)
+        };
+    }
+
+    private static bool TryParseRawMetaEvent(byte[] rawBytes, out byte metaType, out byte[] data)
+    {
+        metaType = 0;
+        data = [];
+
+        if (rawBytes.Length < 3 || rawBytes[0] != 0xFF)
+        {
+            return false;
+        }
+
+        metaType = rawBytes[1];
+        var index = 2;
+        var length = 0;
+        for (var i = 0; i < 4 && index < rawBytes.Length; i++)
+        {
+            var current = rawBytes[index++];
+            length = (length << 7) | (current & 0x7F);
+            if ((current & 0x80) == 0)
+            {
+                if (length >= 0 && index + length <= rawBytes.Length)
+                {
+                    data = rawBytes[index..(index + length)];
+                }
+                else
+                {
+                    data = rawBytes[index..];
+                }
+
+                return true;
+            }
+        }
+
+        data = index < rawBytes.Length ? rawBytes[index..] : [];
+        return true;
+    }
+
     private static byte[] GetRawBytes(MidiEvent midiEvent)
     {
-        // Reconstruct raw bytes based on event type
+        try
+        {
+            using var converter = new MidiEventToBytesConverter();
+            return converter.Convert(midiEvent);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return GetFallbackRawBytes(midiEvent);
+        }
+    }
+
+    private static byte[] GetFallbackRawBytes(MidiEvent midiEvent)
+    {
         return midiEvent switch
         {
             DryNoteOnEvent noteOn => [(byte)(0x90 | (byte)noteOn.Channel), (byte)noteOn.NoteNumber, (byte)noteOn.Velocity],
@@ -436,7 +563,8 @@ public static class MidiFileLoader
             ChannelAftertouchEvent ca => [(byte)(0xD0 | (byte)ca.Channel), (byte)ca.AftertouchValue],
             NoteAftertouchEvent na => [(byte)(0xA0 | (byte)na.Channel), (byte)na.NoteNumber, (byte)na.AftertouchValue],
             NormalSysExEvent sysex => [0xF0, .. sysex.Data],
-            _ => [] // Meta events and others
+            EscapeSysExEvent sysex => [0xF7, .. sysex.Data],
+            _ => []
         };
     }
 }

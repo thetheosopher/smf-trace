@@ -21,6 +21,36 @@ public sealed record ChannelState
     /// <summary>Controller values indexed by CC number.</summary>
     public IReadOnlyDictionary<byte, byte> Controllers { get; init; } = new Dictionary<byte, byte>();
 
+    /// <summary>Pitch bend value (0-16383, center = 8192).</summary>
+    public ushort PitchBend { get; init; } = 8192;
+
+    /// <summary>Channel pressure value.</summary>
+    public byte ChannelPressure { get; init; }
+
+    /// <summary>Polyphonic key pressure values indexed by MIDI note number.</summary>
+    public IReadOnlyDictionary<byte, byte> PolyPressure { get; init; } = new Dictionary<byte, byte>();
+
+    /// <summary>Source event for the current Bank Select MSB value.</summary>
+    public StateValueSource? BankMsbSource { get; init; }
+
+    /// <summary>Source event for the current Bank Select LSB value.</summary>
+    public StateValueSource? BankLsbSource { get; init; }
+
+    /// <summary>Source event for the current Program Change value.</summary>
+    public StateValueSource? ProgramSource { get; init; }
+
+    /// <summary>Source events for controller values indexed by CC number.</summary>
+    public IReadOnlyDictionary<byte, StateValueSource> ControllerSources { get; init; } = new Dictionary<byte, StateValueSource>();
+
+    /// <summary>Source event for the current pitch bend value.</summary>
+    public StateValueSource? PitchBendSource { get; init; }
+
+    /// <summary>Source event for the current channel pressure value.</summary>
+    public StateValueSource? ChannelPressureSource { get; init; }
+
+    /// <summary>Source events for polyphonic key pressure values indexed by MIDI note number.</summary>
+    public IReadOnlyDictionary<byte, StateValueSource> PolyPressureSources { get; init; } = new Dictionary<byte, StateValueSource>();
+
     /// <summary>
     /// Gets the display name for the current instrument.
     /// Returns "(default)" if no program change has been received.

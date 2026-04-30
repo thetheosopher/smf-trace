@@ -22,6 +22,36 @@ public sealed class MutableChannelState
     /// <summary>Controller values by CC number.</summary>
     public Dictionary<byte, byte> Controllers { get; } = [];
 
+    /// <summary>Pitch bend value.</summary>
+    public ushort PitchBend { get; set; } = 8192;
+
+    /// <summary>Channel pressure value.</summary>
+    public byte ChannelPressure { get; set; }
+
+    /// <summary>Polyphonic pressure values by note number.</summary>
+    public Dictionary<byte, byte> PolyPressure { get; } = [];
+
+    /// <summary>Source for Bank Select MSB.</summary>
+    public StateValueSource? BankMsbSource { get; set; }
+
+    /// <summary>Source for Bank Select LSB.</summary>
+    public StateValueSource? BankLsbSource { get; set; }
+
+    /// <summary>Source for Program Change.</summary>
+    public StateValueSource? ProgramSource { get; set; }
+
+    /// <summary>Sources for controller values by CC number.</summary>
+    public Dictionary<byte, StateValueSource> ControllerSources { get; } = [];
+
+    /// <summary>Source for pitch bend.</summary>
+    public StateValueSource? PitchBendSource { get; set; }
+
+    /// <summary>Source for channel pressure.</summary>
+    public StateValueSource? ChannelPressureSource { get; set; }
+
+    /// <summary>Sources for polyphonic pressure values by note number.</summary>
+    public Dictionary<byte, StateValueSource> PolyPressureSources { get; } = [];
+
     /// <summary>
     /// Creates an immutable snapshot of the current state.
     /// </summary>
@@ -31,7 +61,17 @@ public sealed class MutableChannelState
         BankLsb = BankLsb,
         Program = Program,
         HasProgramChange = HasProgramChange,
-        Controllers = new Dictionary<byte, byte>(Controllers)
+        Controllers = new Dictionary<byte, byte>(Controllers),
+        PitchBend = PitchBend,
+        ChannelPressure = ChannelPressure,
+        PolyPressure = new Dictionary<byte, byte>(PolyPressure),
+        BankMsbSource = BankMsbSource,
+        BankLsbSource = BankLsbSource,
+        ProgramSource = ProgramSource,
+        ControllerSources = new Dictionary<byte, StateValueSource>(ControllerSources),
+        PitchBendSource = PitchBendSource,
+        ChannelPressureSource = ChannelPressureSource,
+        PolyPressureSources = new Dictionary<byte, StateValueSource>(PolyPressureSources)
     };
 
     /// <summary>
@@ -44,6 +84,16 @@ public sealed class MutableChannelState
         Program = 0;
         HasProgramChange = false;
         Controllers.Clear();
+        PitchBend = 8192;
+        ChannelPressure = 0;
+        PolyPressure.Clear();
+        BankMsbSource = null;
+        BankLsbSource = null;
+        ProgramSource = null;
+        ControllerSources.Clear();
+        PitchBendSource = null;
+        ChannelPressureSource = null;
+        PolyPressureSources.Clear();
     }
 
     /// <summary>
@@ -59,6 +109,31 @@ public sealed class MutableChannelState
         foreach (var kvp in state.Controllers)
         {
             Controllers[kvp.Key] = kvp.Value;
+        }
+
+        PitchBend = state.PitchBend;
+        ChannelPressure = state.ChannelPressure;
+        PolyPressure.Clear();
+        foreach (var kvp in state.PolyPressure)
+        {
+            PolyPressure[kvp.Key] = kvp.Value;
+        }
+
+        BankMsbSource = state.BankMsbSource;
+        BankLsbSource = state.BankLsbSource;
+        ProgramSource = state.ProgramSource;
+        ControllerSources.Clear();
+        foreach (var kvp in state.ControllerSources)
+        {
+            ControllerSources[kvp.Key] = kvp.Value;
+        }
+
+        PitchBendSource = state.PitchBendSource;
+        ChannelPressureSource = state.ChannelPressureSource;
+        PolyPressureSources.Clear();
+        foreach (var kvp in state.PolyPressureSources)
+        {
+            PolyPressureSources[kvp.Key] = kvp.Value;
         }
     }
 }
@@ -83,7 +158,7 @@ public sealed class StateCheckpoint
 /// </summary>
 public sealed class StateSnapshotBuilder
 {
-    private readonly record struct StateEvent(long Tick, int TrackIndex, MidiEventBase Event);
+    private readonly record struct StateEvent(int EventIndex, long Tick, int TrackIndex, MidiEventBase Event);
 
     private readonly IReadOnlyList<MidiEventBase> _events;
     private readonly List<StateEvent> _stateEvents;
@@ -151,7 +226,7 @@ public sealed class StateSnapshotBuilder
                 break;
             }
 
-            ApplyEventToState(stateEvent.Event);
+            ApplyEventToState(stateEvent.Event, CreateSource(stateEvent));
         }
 
         // Return immutable snapshots
@@ -212,7 +287,7 @@ public sealed class StateSnapshotBuilder
                 continue;
             }
 
-            ApplyEventToState(stateEvent.Event);
+            ApplyEventToState(stateEvent.Event, CreateSource(stateEvent));
         }
 
         var result = new ChannelState[16];
@@ -280,9 +355,10 @@ public sealed class StateSnapshotBuilder
                 nextCheckpointTick += interval;
             }
 
-            if (evt is ControlChangeEvent or ProgramChangeEvent)
+            if (stateEventIndex < _stateEvents.Count && ReferenceEquals(_stateEvents[stateEventIndex].Event, evt))
             {
-                ApplyEventToState(evt);
+                var stateEvent = _stateEvents[stateEventIndex];
+                ApplyEventToState(stateEvent.Event, CreateSource(stateEvent));
                 stateEventIndex++;
             }
         }
@@ -339,16 +415,26 @@ public sealed class StateSnapshotBuilder
         for (var i = 0; i < events.Count; i++)
         {
             var evt = events[i];
-            if (evt is ControlChangeEvent or ProgramChangeEvent)
+            if (evt is ControlChangeEvent or ProgramChangeEvent or PitchBendEvent or ChannelPressureEvent or PolyPressureEvent)
             {
-                stateEvents.Add(new StateEvent(evt.AbsoluteTick, evt.TrackIndex, evt));
+                stateEvents.Add(new StateEvent(i, evt.AbsoluteTick, evt.TrackIndex, evt));
             }
         }
 
         return stateEvents;
     }
 
-    private void ApplyEventToState(MidiEventBase evt)
+    private static StateValueSource CreateSource(StateEvent stateEvent)
+    {
+        return new StateValueSource(
+            stateEvent.EventIndex,
+            stateEvent.Tick,
+            stateEvent.TrackIndex,
+            stateEvent.Event.OriginalIndex,
+            stateEvent.Event.GetType().Name);
+    }
+
+    private void ApplyEventToState(MidiEventBase evt, StateValueSource source)
     {
         switch (evt)
         {
@@ -357,14 +443,17 @@ public sealed class StateSnapshotBuilder
                 if (cc.IsBankSelectMsb)
                 {
                     state.BankMsb = cc.Value;
+                    state.BankMsbSource = source;
                 }
                 else if (cc.IsBankSelectLsb)
                 {
                     state.BankLsb = cc.Value;
+                    state.BankLsbSource = source;
                 }
                 else
                 {
                     state.Controllers[cc.ControllerNumber] = cc.Value;
+                    state.ControllerSources[cc.ControllerNumber] = source;
                 }
                 break;
 
@@ -372,6 +461,25 @@ public sealed class StateSnapshotBuilder
                 var pcState = _currentState[pc.Channel];
                 pcState.Program = pc.ProgramNumber;
                 pcState.HasProgramChange = true;
+                pcState.ProgramSource = source;
+                break;
+
+            case PitchBendEvent pitchBend:
+                var pitchState = _currentState[pitchBend.Channel];
+                pitchState.PitchBend = pitchBend.Value;
+                pitchState.PitchBendSource = source;
+                break;
+
+            case ChannelPressureEvent channelPressure:
+                var pressureState = _currentState[channelPressure.Channel];
+                pressureState.ChannelPressure = channelPressure.Pressure;
+                pressureState.ChannelPressureSource = source;
+                break;
+
+            case PolyPressureEvent polyPressure:
+                var polyState = _currentState[polyPressure.Channel];
+                polyState.PolyPressure[polyPressure.NoteNumber] = polyPressure.Pressure;
+                polyState.PolyPressureSources[polyPressure.NoteNumber] = source;
                 break;
         }
     }

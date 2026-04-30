@@ -155,6 +155,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         Diagnostics.ShowNotes = s.DiagShowNotes;
         Diagnostics.ShowControlChanges = s.DiagShowControlChanges;
         Diagnostics.ShowProgramChanges = s.DiagShowProgramChanges;
+        Diagnostics.ShowMeta = s.DiagShowMeta;
+        Diagnostics.ShowSysEx = s.DiagShowSysEx;
+        Diagnostics.ShowOther = s.DiagShowOther;
         Diagnostics.MetaOnlyMode = s.DiagMetaOnlyMode;
 
         _selectedDefaultInstrument = DefaultInstruments.FirstOrDefault(
@@ -191,6 +194,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.DiagShowNotes = Diagnostics.ShowNotes;
         s.DiagShowControlChanges = Diagnostics.ShowControlChanges;
         s.DiagShowProgramChanges = Diagnostics.ShowProgramChanges;
+        s.DiagShowMeta = Diagnostics.ShowMeta;
+        s.DiagShowSysEx = Diagnostics.ShowSysEx;
+        s.DiagShowOther = Diagnostics.ShowOther;
         s.DiagMetaOnlyMode = Diagnostics.MetaOnlyMode;
 
         _settings.Save();
@@ -1786,9 +1792,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             CurrentTime = e.Time;
 
-            // Update diagnostics current tick for auto-scroll
-            Diagnostics.CurrentTick = e.Tick;
-
             // Tempo is precomputed by the engine and included in position updates.
             CurrentTempo = e.TempoBpm;
 
@@ -1849,7 +1852,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 _channelStates[channel] = _channelStates[channel] with
                 {
                     Program = program,
-                    HasProgramChange = true
+                    HasProgramChange = true,
+                    ProgramSource = StateValueSource.DefaultInstrument
                 };
             }
         }

@@ -115,6 +115,11 @@ public sealed class AppSettings
     public bool DiagShowProgramChanges { get; set; } = true;
 
     /// <summary>
+    /// Show Meta events in diagnostics.
+    /// </summary>
+    public bool DiagShowMeta { get; set; } = true;
+
+    /// <summary>
     /// Show Pitch Bend events in diagnostics.
     /// </summary>
     public bool DiagShowPitchBend { get; set; } = true;
@@ -125,6 +130,11 @@ public sealed class AppSettings
 #pragma warning disable CA1711 // Identifiers should not have incorrect suffix
     public bool DiagShowSysEx { get; set; } = true;
 #pragma warning restore CA1711
+
+    /// <summary>
+    /// Show other events in diagnostics.
+    /// </summary>
+    public bool DiagShowOther { get; set; } = true;
 
     /// <summary>
     /// Meta-only mode in diagnostics.

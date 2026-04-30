@@ -17,7 +17,6 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
     private List<DiagnosticEventViewModel> _allEventViewModels = [];
     private ObservableCollection<DiagnosticEventViewModel> _filteredEvents = [];
     private DiagnosticEventViewModel? _selectedEvent;
-    private long _currentTick;
 
     // Filters
     private bool _showNotes = true;
@@ -55,12 +54,6 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
     }
 
     public bool HasSelection => _selectedEvent != null;
-
-    public long CurrentTick
-    {
-        get => _currentTick;
-        set => SetField(ref _currentTick, value);
-    }
 
     #region Filters
 
@@ -174,6 +167,13 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
                 case SysExEvent sysex:
                     lines.Add($"Length: {sysex.Data.Length} bytes");
                     lines.Add($"Manufacturer ID: {FormatHexBytes(sysex.ManufacturerId)}");
+                    break;
+
+                case OtherMidiEvent other:
+                    if (!string.IsNullOrWhiteSpace(other.Summary))
+                    {
+                        lines.Add($"Summary: {other.Summary}");
+                    }
                     break;
             }
 

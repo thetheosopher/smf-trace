@@ -226,4 +226,5 @@ public class DiagnosticsViewModelTests
         Assert.Equal(2, vm.FilteredEvents.Count);
         Assert.Same(firstReference, vm.FilteredEvents[0]);
     }
+
 }
