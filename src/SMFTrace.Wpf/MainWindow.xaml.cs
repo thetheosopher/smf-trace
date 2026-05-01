@@ -570,11 +570,12 @@ public partial class MainWindow : Window
         }
     }
 
-    public async Task OpenFileFromCommandLineAsync(string filePath)
+    public async Task OpenFilesFromCommandLineAsync(IEnumerable<string> filePaths)
     {
-        if (IsMidiFile(filePath))
+        var files = filePaths.Where(IsMidiFile).ToArray();
+        if (files.Length > 0)
         {
-            await _viewModel.ReplacePlaylistAsync(new[] { filePath }, autoPlay: true);
+            await _viewModel.ReplacePlaylistAsync(files, autoPlay: true);
         }
     }
 

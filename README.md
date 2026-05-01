@@ -75,6 +75,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 ### Playlist, Devices, and Workflow
 
 - Replace-playlist and append-to-playlist workflows from the file picker or drag and drop.
+- Command-line launch with one or more MIDI files replaces the playlist and starts the first file.
 - Double-click playlist entries to load and play immediately.
 - Playlist metadata columns for duration, tempo, time signature, key, SMF type, track count, SysEx, lyrics, and path.
 - MIDI output device picker with last-device restore when available.

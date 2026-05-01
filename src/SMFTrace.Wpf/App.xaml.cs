@@ -13,17 +13,18 @@ public partial class App : Application
 		base.OnStartup(e);
 
 		var mainWindow = new MainWindow();
-		var filePath = GetCommandLineMidiPath(e.Args);
-		if (!string.IsNullOrEmpty(filePath))
-		{
-			_ = mainWindow.OpenFileFromCommandLineAsync(filePath);
-		}
-
 		mainWindow.Show();
+
+		var filePaths = GetCommandLineMidiPaths(e.Args);
+		if (filePaths.Count > 0)
+		{
+			_ = mainWindow.OpenFilesFromCommandLineAsync(filePaths);
+		}
 	}
 
-	private static string? GetCommandLineMidiPath(string[] args)
+	internal static IReadOnlyList<string> GetCommandLineMidiPaths(IEnumerable<string> args)
 	{
+		var paths = new List<string>();
 		foreach (var arg in args)
 		{
 			if (string.IsNullOrWhiteSpace(arg))
@@ -41,11 +42,11 @@ public partial class App : Application
 			if (ext.Equals(".mid", StringComparison.OrdinalIgnoreCase) ||
 				ext.Equals(".midi", StringComparison.OrdinalIgnoreCase))
 			{
-				return path;
+				paths.Add(path);
 			}
 		}
 
-		return null;
+		return paths;
 	}
 }
 
