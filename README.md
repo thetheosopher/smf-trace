@@ -1,6 +1,6 @@
 # SMF Trace
 
-![Release](https://img.shields.io/badge/release-1.0.0-0f766e)
+![Release](https://img.shields.io/badge/release-1.1.0-0f766e)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-WPF-0B5CAD)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-1F2937)
@@ -21,11 +21,11 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 | Item | Value |
 | --- | --- |
-| Current release | `1.0.0` |
+| Current release | `1.1.0` |
 | License | MIT |
 | Targets | `net10.0`, `net10.0-windows` |
 | SDK | `.NET 10.0.x` (`global.json` pins `10.0.102` and allows feature-band roll-forward) |
-| Verified build | `.NET SDK 10.0.202` |
+| Verified build | `.NET SDK 10.0.203` |
 | Output root | `output/` |
 
 ## Why SMF Trace
@@ -33,6 +33,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 - Loads and plays SMF Type 0 and Type 1 files.
 - Shows every file event, including meta events and SysEx.
 - Keeps piano roll playback and diagnostics synchronized to the same timeline.
+- Starts playback directly from command-line MIDI file arguments, including multi-file playlist launch.
 - Rebuilds controller, bank, and program state when you seek.
 - Sends SysEx by default, with a toggle to suppress output while keeping the events visible.
 - Persists device choice and UI preferences between sessions.
@@ -41,7 +42,8 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 | Version | Status | Date | Notes |
 | --- | --- | --- | --- |
-| `1.0.0` | Current release | 2026-04 | .NET 10 solution, WPF desktop app, synchronized piano roll, playlist metadata, diagnostics filters, and portable `win-x64` packaging. |
+| `1.1.0` | Current release | 2026-05 | Adds command-line MIDI startup with single-file autoplay and multi-file playlist launch in argument order. |
+| `1.0.0` | Previous release | 2026-04 | .NET 10 solution, WPF desktop app, synchronized piano roll, playlist metadata, diagnostics filters, and portable `win-x64` packaging. |
 
 ## Product Features
 
@@ -75,7 +77,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 ### Playlist, Devices, and Workflow
 
 - Replace-playlist and append-to-playlist workflows from the file picker or drag and drop.
-- Command-line launch with one or more MIDI files replaces the playlist and starts the first file.
+- Command-line launch supports single-file autoplay or multi-file playlist startup in argument order.
 - Double-click playlist entries to load and play immediately.
 - Playlist metadata columns for duration, tempo, time signature, key, SMF type, track count, SysEx, lyrics, and path.
 - MIDI output device picker with last-device restore when available.
