@@ -80,12 +80,12 @@ public sealed class AppSettings
     /// <summary>
     /// Whether piano keys are shown in the lane header.
     /// </summary>
-    public bool ShowPianoKeys { get; set; }
+    public bool ShowPianoKeys { get; set; } = true;
 
     /// <summary>
     /// Whether lane pitch ranges are compacted to used notes plus margin.
     /// </summary>
-    public bool CompactPitchRange { get; set; }
+    public bool CompactPitchRange { get; set; } = true;
 
     /// <summary>
     /// Whether overlay mode is enabled (all tracks on single lane with track colors).

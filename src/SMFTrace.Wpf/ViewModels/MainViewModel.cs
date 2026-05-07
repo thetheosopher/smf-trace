@@ -34,7 +34,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private double _windowSeconds = 30.0;
     private bool _showTempo = true;
     private bool _showBarsBeatsGrid = true;
-    private bool _showTrackControls;
+    private bool _showTrackControls = true;
     private bool _showLyricsLane;
     private double _pitchRowHeight = 8.0;
     private bool _loopPlayback;
@@ -46,7 +46,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showNoteNames;
     private bool _isDarkTheme = true;
     private bool _showPianoKeys;
-    private bool _compactPitchRange;
+    private bool _compactPitchRange = true;
     private bool _overlayMode;
     private int _midiFormat = 1;
     private PlaybackState _playbackState = PlaybackState.Stopped;
@@ -303,9 +303,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => _disableSysExOutput;
         set
         {
-            if (SetField(ref _disableSysExOutput, value) && _engine != null)
+            if (SetField(ref _disableSysExOutput, value))
             {
-                _engine.DisableSysExOutput = value;
+                if (_engine != null)
+                {
+                    _engine.DisableSysExOutput = value;
+                }
+
+                OnPropertyChanged(nameof(SysExStatusLabel));
+                OnPropertyChanged(nameof(SysExStatusToolTip));
             }
         }
     }
@@ -494,6 +500,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (SetField(ref _selectedDevice, value))
             {
                 OnDeviceChanged();
+                OnPropertyChanged(nameof(OutputDeviceStatusLabel));
             }
         }
     }
@@ -501,7 +508,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public bool IsFileLoaded
     {
         get => _isFileLoaded;
-        private set => SetField(ref _isFileLoaded, value);
+        private set
+        {
+            if (SetField(ref _isFileLoaded, value))
+            {
+                OnPropertyChanged(nameof(FileStatusLine));
+            }
+        }
     }
 
     public bool IsLoading
@@ -603,6 +616,34 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public IReadOnlyList<TrackInfo> Tracks => _fileData?.Tracks ?? [];
     public ChannelState[] ChannelStates => _channelStates;
     public bool HasTrackPlaybackStates => TrackPlaybackStates.Count > 0;
+
+    /// <summary>Compact one-line summary for the status bar (tracks · channels · events).</summary>
+    public string FileStatusLine
+    {
+        get
+        {
+            if (!IsFileLoaded || _fileData == null)
+            {
+                return "No file loaded";
+            }
+
+            var trackCount = _fileData.Tracks.Count;
+            var channelCount = _fileUsedChannels?.Length ?? 0;
+            var eventCount = _fileData.Events.Count;
+            return $"SMF{_fileData.Format}  ·  {trackCount} trk  ·  {channelCount} ch  ·  {eventCount:N0} ev";
+        }
+    }
+
+    /// <summary>Display label for the SysEx output state in the status bar.</summary>
+    public string SysExStatusLabel => DisableSysExOutput ? "SysEx out: Suppressed" : "SysEx out: On";
+
+    /// <summary>Tooltip describing the SysEx state.</summary>
+    public string SysExStatusToolTip => DisableSysExOutput
+        ? "SysEx messages are NOT being sent to the output device. Click to enable."
+        : "SysEx messages are being sent to the output device. Click to suppress.";
+
+    /// <summary>Friendly label for the currently selected output device, used in the status bar.</summary>
+    public string OutputDeviceStatusLabel => SelectedDevice?.Name ?? "No output device";
     public bool HasLyrics
     {
         get => _hasLyrics;

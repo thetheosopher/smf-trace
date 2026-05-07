@@ -89,6 +89,13 @@ public class PianoRollPanel : FrameworkElement
             typeof(PianoRollPanel),
             new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender, OnShowBarsBeatsGridChanged));
 
+    public static readonly DependencyProperty ShowOverlayTrackLegendProperty =
+        DependencyProperty.Register(
+            nameof(ShowOverlayTrackLegend),
+            typeof(bool),
+            typeof(PianoRollPanel),
+            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty TempoBadgeRightInsetProperty =
         DependencyProperty.Register(
             nameof(TempoBadgeRightInset),
@@ -204,6 +211,12 @@ public class PianoRollPanel : FrameworkElement
     {
         get => (bool)GetValue(ShowBarsBeatsGridProperty);
         set => SetValue(ShowBarsBeatsGridProperty, value);
+    }
+
+    public bool ShowOverlayTrackLegend
+    {
+        get => (bool)GetValue(ShowOverlayTrackLegendProperty);
+        set => SetValue(ShowOverlayTrackLegendProperty, value);
     }
 
     public double TempoBadgeRightInset
@@ -1952,7 +1965,10 @@ public class PianoRollPanel : FrameworkElement
                 RenderPianoKeysForLane(dc, _lanes[0], renderTime, keyLeft);
             }
 
-            RenderOverlayTrackList(dc, headerRight);
+            if (ShowOverlayTrackLegend)
+            {
+                RenderOverlayTrackList(dc, headerRight);
+            }
 
             // Also render note names in overlay mode (using first lane or full height)
             if (ShowNoteNames && _lanes.Count > 0)
