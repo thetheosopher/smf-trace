@@ -1,6 +1,6 @@
 # SMF Trace
 
-![Release](https://img.shields.io/badge/release-1.1.0-0f766e)
+![Release](https://img.shields.io/badge/release-1.2.0.0-0f766e)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-WPF-0B5CAD)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-1F2937)
@@ -21,7 +21,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 | Item | Value |
 | --- | --- |
-| Current release | `1.1.0` |
+| Current release | `1.2.0.0` |
 | License | MIT |
 | Targets | `net10.0`, `net10.0-windows` |
 | SDK | `.NET 10.0.x` (`global.json` pins `10.0.102` and allows feature-band roll-forward) |
@@ -42,7 +42,8 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 | Version | Status | Date | Notes |
 | --- | --- | --- | --- |
-| `1.1.0` | Current release | 2026-05 | Adds command-line MIDI startup with single-file autoplay and multi-file playlist launch in argument order. |
+| `1.2.0.0` | Current release | 2026-05 | Adds a toolbar About button, restores the overlay-mode track color key, and replaces the panic glyph with a clearer alert icon. |
+| `1.1.0` | Previous release | 2026-05 | Adds command-line MIDI startup with single-file autoplay and multi-file playlist launch in argument order. |
 | `1.0.0` | Previous release | 2026-04 | .NET 10 solution, WPF desktop app, synchronized piano roll, playlist metadata, diagnostics filters, and portable `win-x64` packaging. |
 
 ## Product Features
@@ -61,7 +62,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 - Lanes split by `(track, channel)` so multi-channel files stay readable.
 - Velocity-colored note rendering with note-name and octave emphasis options.
-- Toggleable bars/beats grid, note labels, piano keys, compact pitch range, and overlay mode.
+- Toggleable bars/beats grid, note labels, piano keys, compact pitch range, and overlay mode with a track color key.
 - Optional lyrics lane with active-line highlighting when lyric meta events are present.
 - Optional track control rail with per-track mute and solo switches.
 - Custom-rendered WPF piano roll optimized for large files and smooth scrolling.
@@ -82,6 +83,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 - Playlist metadata columns for duration, tempo, time signature, key, SMF type, track count, SysEx, lyrics, and path.
 - MIDI output device picker with last-device restore when available.
 - Default instrument selector for files that do not establish a program change before playback.
+- Toolbar About button opens the app info dialog with version, project, and support links.
 - Dark/light theme toggle and persisted UI settings.
 - User settings are stored at `%LOCALAPPDATA%\SMFTrace\settings.json`.
 

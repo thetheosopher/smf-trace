@@ -668,6 +668,25 @@
 
                     <Border Style="{StaticResource ToolbarDividerStyle}"/>
 
+                    <Button Style="{StaticResource GhostIconButtonStyle}"
+                            Click="AboutButton_Click"
+                            ToolTip="About SMF Trace">
+                        <Viewbox Width="16" Height="16" Stretch="Uniform">
+                            <Grid Width="16" Height="16">
+                                <Ellipse Stroke="{DynamicResource TextMutedBrush}"
+                                         StrokeThickness="1.2"
+                                         Fill="Transparent"/>
+                                <TextBlock Text="?"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           FontFamily="Segoe UI"
+                                           FontSize="11"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Margin="0,-0.4,0,0"/>
+                            </Grid>
+                        </Viewbox>
+                    </Button>
                     <ToggleButton IsChecked="{Binding IsDarkTheme}"
                                   Style="{StaticResource GhostIconToggleStyle}"
                                   ToolTip="{Binding ThemeToggleToolTip}">
@@ -677,7 +696,25 @@
                             Style="{StaticResource GhostIconButtonStyle}"
                             ToolTip="{Binding PanicToolTip}"
                             Foreground="#E5484D">
-                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="14" Text="&#xE7E4;"/>
+                        <Viewbox Width="16" Height="16" Stretch="Uniform">
+                            <Grid Width="16" Height="16">
+                                <Ellipse Fill="#22E5484D"
+                                         Stroke="#E5484D"
+                                         StrokeThickness="1.2"/>
+                                <Rectangle Width="2.4"
+                                           Height="7.2"
+                                           RadiusX="1.2"
+                                           RadiusY="1.2"
+                                           Fill="#E5484D"
+                                           VerticalAlignment="Top"
+                                           Margin="0,2.1,0,0"/>
+                                <Ellipse Width="2.8"
+                                         Height="2.8"
+                                         Fill="#E5484D"
+                                         VerticalAlignment="Bottom"
+                                         Margin="0,0,0,2.0"/>
+                            </Grid>
+                        </Viewbox>
                     </Button>
                 </StackPanel>
             </Grid>
@@ -804,7 +841,7 @@
                                                          MidiFormat="{Binding MidiFormat}"
                                                          ShowTempo="{Binding ShowTempo}"
                                                          RenderTempoBadge="False"
-                                                         ShowOverlayTrackLegend="False"
+                                                        ShowOverlayTrackLegend="True"
                                                          ShowBarsBeatsGrid="{Binding ShowBarsBeatsGrid}"
                                                          ShowNoteNames="{Binding ShowNoteNames}"
                                                          ShowPianoKeys="{Binding ShowPianoKeys}"

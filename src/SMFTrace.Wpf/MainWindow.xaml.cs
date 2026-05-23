@@ -602,6 +602,11 @@ public partial class MainWindow : Window
         _ = aboutWindow.ShowDialog();
     }
 
+    private void AboutButton_Click(object sender, RoutedEventArgs e)
+    {
+        ShowAboutDialog();
+    }
+
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == WmSysCommand && (wParam.ToInt32() & 0xFFF0) == AboutSystemMenuId)
