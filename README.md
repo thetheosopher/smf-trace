@@ -1,6 +1,6 @@
 # SMF Trace
 
-![Release](https://img.shields.io/badge/release-1.2.0.0-0f766e)
+![Release](https://img.shields.io/badge/release-1.2.1.0-0f766e)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-WPF-0B5CAD)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-1F2937)
@@ -21,7 +21,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 | Item | Value |
 | --- | --- |
-| Current release | `1.2.0.0` |
+| Current release | `1.2.1.0` |
 | License | MIT |
 | Targets | `net10.0`, `net10.0-windows` |
 | SDK | `.NET 10.0.x` (`global.json` pins `10.0.102` and allows feature-band roll-forward) |
@@ -42,7 +42,8 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 | Version | Status | Date | Notes |
 | --- | --- | --- | --- |
-| `1.2.0.0` | Current release | 2026-05 | Adds a toolbar About button, restores the overlay-mode track color key, and replaces the panic glyph with a clearer alert icon. |
+| `1.2.1.0` | Current release | 2026-07 | Refreshes the release metadata and documentation for the latest package build. |
+| `1.2.0.0` | Previous release | 2026-05 | Adds a toolbar About button, restores the overlay-mode track color key, and replaces the panic glyph with a clearer alert icon. |
 | `1.1.0` | Previous release | 2026-05 | Adds command-line MIDI startup with single-file autoplay and multi-file playlist launch in argument order. |
 | `1.0.0` | Previous release | 2026-04 | .NET 10 solution, WPF desktop app, synchronized piano roll, playlist metadata, diagnostics filters, and portable `win-x64` packaging. |
 
