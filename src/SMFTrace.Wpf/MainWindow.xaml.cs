@@ -52,6 +52,7 @@ public partial class MainWindow : Window
         PianoRoll.SeekDragDelta += OnPianoRollSeekDragDelta;
         PianoRoll.SeekDragCompleted += OnPianoRollSeekDragCompleted;
         PianoRoll.MarkerClicked += OnPianoRollMarkerClicked;
+        PianoRoll.InspectNoteRequested += OnInspectNoteRequested;
 
         Closing += OnClosing;
         StateChanged += OnStateChanged;
@@ -261,6 +262,7 @@ public partial class MainWindow : Window
         PianoRoll.SeekDragDelta -= OnPianoRollSeekDragDelta;
         PianoRoll.SeekDragCompleted -= OnPianoRollSeekDragCompleted;
         PianoRoll.MarkerClicked -= OnPianoRollMarkerClicked;
+        PianoRoll.InspectNoteRequested -= OnInspectNoteRequested;
         _viewModel.Dispose();
     }
 
@@ -303,6 +305,18 @@ public partial class MainWindow : Window
     }
 
     private void OnPianoRollMarkerClicked(object? sender, long tick) => _viewModel.SeekToMidiTick(tick);
+
+    private void OnInspectNoteRequested(object? sender, SMFTrace.Core.Models.NoteOnEvent note)
+    {
+        if (_viewModel.IsLoading || !_viewModel.Diagnostics.TryInspectNote(note))
+        {
+            return;
+        }
+
+        var row = _viewModel.Diagnostics.SelectedEvent!;
+        MainTabs.SelectedItem = EventsTab;
+        Dispatcher.BeginInvoke(() => DiagnosticsView.RevealSelection(row), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
 
     private void OnPianoRollSeekDragDelta(object? sender, PianoRollSeekEventArgs e)
     {

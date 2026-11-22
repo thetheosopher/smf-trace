@@ -47,6 +47,7 @@ public class NotePairerTests
 
         // Assert
         Assert.Single(pairs);
+        Assert.Same(events[0], pairs[0].SourceEvent);
         Assert.Equal(0L, pairs[0].StartTick);
         Assert.Equal(480L, pairs[0].EndTick);
         Assert.Equal(60, pairs[0].NoteNumber);
@@ -182,6 +183,7 @@ public class NotePairerTests
         {
             new()
             {
+                SourceEvent = CreateNoteOn(0, 0, 60),
                 StartTick = 0, EndTick = 480,
                 StartTime = TimeSpan.Zero, EndTime = TimeSpan.FromMilliseconds(480),
                 Channel = 0, NoteNumber = 60, Velocity = 100, TrackIndex = 0,
@@ -189,6 +191,7 @@ public class NotePairerTests
             },
             new()
             {
+                SourceEvent = CreateNoteOn(0, 1, 60),
                 StartTick = 0, EndTick = 480,
                 StartTime = TimeSpan.Zero, EndTime = TimeSpan.FromMilliseconds(480),
                 Channel = 1, NoteNumber = 60, Velocity = 100, TrackIndex = 0,
@@ -196,6 +199,7 @@ public class NotePairerTests
             },
             new()
             {
+                SourceEvent = CreateNoteOn(100, 0, 62),
                 StartTick = 100, EndTick = 480,
                 StartTime = TimeSpan.FromMilliseconds(100), EndTime = TimeSpan.FromMilliseconds(480),
                 Channel = 0, NoteNumber = 62, Velocity = 100, TrackIndex = 0,

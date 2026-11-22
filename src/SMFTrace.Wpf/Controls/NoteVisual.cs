@@ -34,6 +34,7 @@ public readonly struct NoteVisual
 /// </summary>
 public sealed class PairedNote
 {
+    public required SMFTrace.Core.Models.NoteOnEvent SourceEvent { get; init; }
     public required long StartTick { get; init; }
     public required long EndTick { get; init; }
     public required TimeSpan StartTime { get; init; }

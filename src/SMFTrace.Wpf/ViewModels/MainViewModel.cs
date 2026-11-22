@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using Melanchall.DryWetMidi.Interaction;
 using Microsoft.Win32;
 using SMFTrace.Core.Models;
 using SMFTrace.Core.Sequencer;
@@ -64,7 +65,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _isSeeking;
     private bool _isStopping;
     private (long Tick, TimeSpan Time)? _loopStart;
-    private TimeSpan? _loopEnd;
+    private (long Tick, TimeSpan Time)? _loopEnd;
     private bool _forceStopPosition;
     private bool _userStopRequested;
     private bool _isPlaylistTransition;
@@ -700,8 +701,31 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand ClearLoopRangeCommand { get; }
 
     public string LoopRangeLabel => _loopStart is not { } start ? "A/B loop off" :
-        _loopEnd is { } end ? $"A {start.Time:mm\\:ss\\.fff}   B {end:mm\\:ss\\.fff}" :
-        $"A {start.Time:mm\\:ss\\.fff} — seek forward to set B";
+        _loopEnd is { } end ? $"{FormatLoopPoint("A", start)}   {FormatLoopPoint("B", end)}" :
+        $"{FormatLoopPoint("A", start)} — seek forward to set B";
+
+    public bool HasLoopRange => _loopEnd.HasValue;
+
+    public double LoopStartPosition => GetLoopPosition(_loopStart?.Time);
+
+    public double LoopEndPosition => GetLoopPosition(_loopEnd?.Time);
+
+    private double GetLoopPosition(TimeSpan? time) =>
+        time is { } position && TotalDuration > TimeSpan.Zero
+            ? Math.Clamp(position.TotalSeconds / TotalDuration.TotalSeconds, 0, 1)
+            : 0;
+
+    private string FormatLoopPoint(string name, (long Tick, TimeSpan Time) point)
+    {
+        if (TimelineTempoMap is { } tempoMap && tempoMap.TimeDivision is Melanchall.DryWetMidi.Core.TicksPerQuarterNoteTimeDivision)
+        {
+            var musical = TimeConverter.ConvertTo<BarBeatTicksTimeSpan>(point.Tick, tempoMap);
+            var offset = musical.Ticks == 0 ? "" : $", +{musical.Ticks} ticks";
+            return $"{name} Bar {musical.Bars + 1}, beat {musical.Beats + 1}{offset}";
+        }
+
+        return $"{name} {point.Time:mm\\:ss\\.fff}";
+    }
 
     #endregion
 
@@ -1429,7 +1453,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (!SetLoopEndCommand.CanExecute(null) || _engine is not { } engine || _loopStart is not { } start) return;
 
         engine.SetLoopRange(start.Tick, engine.CurrentTick);
-        _loopEnd = engine.CurrentTime;
+        _loopEnd = (engine.CurrentTick, engine.CurrentTime);
         OnLoopSelectionChanged();
     }
 
@@ -1451,6 +1475,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private void OnLoopSelectionChanged()
     {
         OnPropertyChanged(nameof(LoopRangeLabel));
+        OnPropertyChanged(nameof(HasLoopRange));
+        OnPropertyChanged(nameof(LoopStartPosition));
+        OnPropertyChanged(nameof(LoopEndPosition));
         CommandManager.InvalidateRequerySuggested();
     }
 

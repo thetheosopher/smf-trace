@@ -747,10 +747,11 @@ direction (B + A mode + D mode).
 | Files | Drag-and-drop open (Shift = append to playlist) | ⚪ |  |  |  |
 | Files | Recent files menu + persistence | ⚪ |  |  |  |
 | Files | Ctrl+P quick switcher over recents + playlist | ⚪ |  |  |  |
-| Playback | Loop region on scrubber and ruler (drag to set/resize) | 🟡 | 2026-11-22 |  | Set A, Set B, and Clear A/B in v1.3.0.0; drag-to-edit remains deferred |
+| Playback | Loop region on scrubber and ruler (drag to set/resize) | 🟡 | 2026-11-22 |  | Set A, Set B, and Clear A/B in v1.3.0.0; scrubber shading and bar/beat readouts in v1.4.0.0; drag-to-edit remains deferred |
 | Playback | Speed control (0.25×–2×) independent of tempo | ⚪ |  |  |  |
 | Tracks | Track strip with Mute / Solo / Volume / Program | ⚪ |  |  |  |
 | Events | Follow Playback, current row highlight, and Go to event | 🟢 | 2026-11-22 | 2026-11-22 | Included in v1.3.0.0 |
+| Events | Show in Events from a piano-roll note | 🟢 | 2026-11-22 | 2026-11-22 | In v1.4.0.0; selects the source Note On without seeking |
 | Events | Filter chips with live counts per family | ⚪ |  |  |  |
 | Events | Search upgrade: regex + scope selector | ⚪ |  |  |  |
 | Discoverability | Shortcut cheat sheet overlay (`?`) | ⚪ |  |  |  |
@@ -798,6 +799,7 @@ direction (B + A mode + D mode).
 |---|---|---|
 | 2026-05-04 | Plan created. |  |
 | 2026-11-22 | v1.3.0.0 adds Events navigation, a musical ruler with marker seeking, and A/B repeat controls. | [v1.3.0.0](https://github.com/thetheosopher/smf-trace/releases/tag/v1.3.0.0) |
+| 2026-11-22 | v1.4.0.0 makes A/B ranges visible on the scrubber and adds Show in Events for piano-roll notes. | [v1.4.0.0](https://github.com/thetheosopher/smf-trace/releases/tag/v1.4.0.0) |
 
 ---
 

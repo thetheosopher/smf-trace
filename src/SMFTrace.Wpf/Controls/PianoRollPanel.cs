@@ -24,6 +24,7 @@ public class PianoRollPanel : FrameworkElement
     public event EventHandler<PianoRollSeekEventArgs>? SeekDragDelta;
     public event EventHandler<PianoRollSeekEventArgs>? SeekDragCompleted;
     public event EventHandler<long>? MarkerClicked;
+    public event EventHandler<NoteOnEvent>? InspectNoteRequested;
 
     private const double RulerHeight = 42;
     private TempoMap? _timelineTempoMap;
@@ -1204,6 +1205,7 @@ public class PianoRollPanel : FrameworkElement
         {
             return false;
         }
+
         foreach (var (bounds, marker) in _markerHits)
         {
             if (bounds.Contains(point))
@@ -1213,6 +1215,33 @@ public class PianoRollPanel : FrameworkElement
             }
         }
         return false;
+    }
+
+    protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseRightButtonUp(e);
+        if (CreateNoteContextMenu(e.GetPosition(this)) is not { } menu)
+        {
+            return;
+        }
+
+        HideNoteTooltip();
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+    internal ContextMenu? CreateNoteContextMenu(Point point)
+    {
+        if (InspectNoteRequested == null || HitTestNotes(point).LastOrDefault() is not { } note)
+        {
+            return null;
+        }
+
+        var item = new MenuItem { Header = "Show in Events" };
+        item.Click += (_, _) => InspectNoteRequested?.Invoke(this, note.SourceEvent);
+        var menu = new ContextMenu { PlacementTarget = this, Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
+        menu.Items.Add(item);
+        return menu;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -1901,8 +1930,6 @@ public class PianoRollPanel : FrameworkElement
             return;
         }
 
-        var pitchCount = lane.PitchCount;
-        var rowHeight = lane.Height / pitchCount;
         var useTrackColors = OverlayMode;
 
         var startIndex = FindFirstVisibleNoteIndex(lane.Notes, leftTime, lane.MaxNoteDurationSeconds);
@@ -1915,35 +1942,10 @@ public class PianoRollPanel : FrameworkElement
                 break;
             }
 
-            var noteEndSec = note.EndTime.TotalSeconds;
-
-            // Skip notes outside visible range
-            if (noteEndSec < leftTime)
+            if (!TryGetNoteBounds(lane, note, leftTime, pixelsPerSecond, out var rect))
             {
                 continue;
             }
-
-            // Skip notes outside pitch range
-            if (note.NoteNumber < lane.PitchLow || note.NoteNumber > lane.PitchHigh)
-            {
-                continue;
-            }
-
-            // Calculate X coordinates
-            var x1 = PianoRollSettings.LaneHeaderWidth + (noteStartSec - leftTime) * pixelsPerSecond;
-            var x2 = PianoRollSettings.LaneHeaderWidth + (noteEndSec - leftTime) * pixelsPerSecond;
-
-            // Clamp to visible area
-            x1 = Math.Max(x1, PianoRollSettings.LaneHeaderWidth);
-            x2 = Math.Min(x2, ActualWidth);
-
-            if (x2 <= x1) continue;
-
-            // Calculate Y coordinate (inverted: low pitches at bottom)
-            var relPitch = note.NoteNumber - lane.PitchLow;
-            var y = lane.YOffset + lane.Height - (relPitch + 1) * rowHeight;
-
-            var rect = new Rect(x1, y + 1, x2 - x1, rowHeight - 2);
 
             // Use track colors in overlay mode, velocity colors otherwise
             var brush = useTrackColors
@@ -1971,6 +1973,28 @@ public class PianoRollPanel : FrameworkElement
                 dc.DrawRectangle(brush, null, rect);
             }
         }
+    }
+
+    private bool TryGetNoteBounds(LaneLayout lane, PairedNote note, double leftTime, double pixelsPerSecond, out Rect bounds)
+    {
+        bounds = Rect.Empty;
+        if (note.NoteNumber < lane.PitchLow || note.NoteNumber > lane.PitchHigh)
+        {
+            return false;
+        }
+
+        var header = PianoRollSettings.LaneHeaderWidth;
+        var x1 = header + Math.Max(0, (note.StartTime.TotalSeconds - leftTime) * pixelsPerSecond);
+        var x2 = Math.Min(ActualWidth, header + (note.EndTime.TotalSeconds - leftTime) * pixelsPerSecond);
+        var rowHeight = lane.Height / lane.PitchCount;
+        if (x2 <= x1 || rowHeight <= 2)
+        {
+            return false;
+        }
+
+        var y = lane.YOffset + lane.Height - (note.NoteNumber - lane.PitchLow + 1) * rowHeight;
+        bounds = new Rect(x1, y + 1, x2 - x1, rowHeight - 2);
+        return true;
     }
 
     private static int FindFirstVisibleNoteIndex(List<PairedNote> notes, double leftTime, double maxNoteDurationSeconds)
@@ -3001,7 +3025,9 @@ public class PianoRollPanel : FrameworkElement
         var results = new List<PairedNote>();
 
         // Only hit-test in the note area (right of lane headers)
-        if (point.X < PianoRollSettings.LaneHeaderWidth || _lanes.Count == 0)
+        if (point.X < PianoRollSettings.LaneHeaderWidth || point.X > ActualWidth ||
+            point.Y < TimelineHeight + GetLyricsLaneHeight() || _lanes.Count == 0 ||
+            (TryGetContentClipRect(out var clip) && !clip.Contains(point)))
         {
             return results;
         }
@@ -3015,7 +3041,6 @@ public class PianoRollPanel : FrameworkElement
         var pixelsPerSecond = viewWidth / WindowSeconds;
         var leftTime = RenderTime.TotalSeconds - WindowSeconds * PianoRollSettings.PlayheadPosition;
 
-        // Convert mouse X to time
         var mouseTime = leftTime + (point.X - PianoRollSettings.LaneHeaderWidth) / pixelsPerSecond;
 
         foreach (var lane in _lanes)
@@ -3026,34 +3051,18 @@ public class PianoRollPanel : FrameworkElement
                 continue;
             }
 
-            var pitchCount = lane.PitchCount;
-            var rowHeight = lane.Height / pitchCount;
-
-            // Convert mouse Y to pitch within this lane (inverted: low pitches at bottom)
-            var relY = point.Y - lane.YOffset;
-            var relPitch = (int)((lane.Height - relY) / rowHeight);
-            var mousePitch = lane.PitchLow + relPitch;
-
-            if (mousePitch < lane.PitchLow || mousePitch > lane.PitchHigh)
-            {
-                continue;
-            }
-
-            // Search for notes at this time and pitch
-            var rightTime = leftTime + WindowSeconds;
             var startIndex = FindFirstVisibleNoteIndex(lane.Notes, leftTime, lane.MaxNoteDurationSeconds);
 
             for (var i = startIndex; i < lane.Notes.Count; i++)
             {
                 var note = lane.Notes[i];
-                if (note.StartTime.TotalSeconds > rightTime)
+                if (note.StartTime.TotalSeconds > mouseTime)
                 {
                     break;
                 }
 
-                if (note.NoteNumber == mousePitch
-                    && mouseTime >= note.StartTime.TotalSeconds
-                    && mouseTime <= note.EndTime.TotalSeconds)
+                if (note.EndTime.TotalSeconds >= mouseTime &&
+                    TryGetNoteBounds(lane, note, leftTime, pixelsPerSecond, out var bounds) && bounds.Contains(point))
                 {
                     results.Add(note);
                 }

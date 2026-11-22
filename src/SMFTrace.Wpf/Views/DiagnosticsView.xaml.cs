@@ -109,6 +109,18 @@ public partial class DiagnosticsView : UserControl
         }
     }
 
+    internal void RevealSelection(DiagnosticEventViewModel row)
+    {
+        if (!IsLoaded || _viewModel?.FollowPlayback != false || !EventList.Items.Contains(row))
+        {
+            return;
+        }
+
+        EventList.UnselectAll();
+        EventList.SelectedItem = row;
+        EventList.ScrollIntoView(row);
+    }
+
     private void CenterPlaybackSelection()
     {
         if (_viewModel is not { FollowPlayback: true } || _viewModel.PlaybackActiveEvents.Count == 0)

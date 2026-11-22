@@ -241,6 +241,24 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool TryInspectNote(NoteOnEvent note)
+    {
+        var row = _allEventViewModels.Find(vm => ReferenceEquals(vm.Event, note));
+        if (row == null)
+        {
+            return false;
+        }
+
+        FollowPlayback = false;
+        if (!FilteredEvents.Contains(row))
+        {
+            ClearFilters();
+        }
+
+        SelectedEvent = row;
+        return true;
+    }
+
     /// <summary>
     /// Clears all filters and shows all events.
     /// </summary>

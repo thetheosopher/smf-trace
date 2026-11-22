@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using Melanchall.DryWetMidi.Interaction;
 using SMFTrace.Core.Models;
@@ -9,6 +10,44 @@ namespace SMFTrace.Wpf.Tests;
 
 public sealed class PianoRollTimelineTests
 {
+    [Fact]
+    public async Task NoteContextMenuUsesTheRenderedNoteWithoutSeeking()
+    {
+        var result = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var note = new NoteOnEvent { AbsoluteTick = 0, Time = TimeSpan.Zero, TrackIndex = 0,
+                    OriginalIndex = 0, RawBytes = [], NoteNumber = 60, Velocity = 100, Channel = 0 };
+                var panel = new TestPanel { WindowSeconds = 4, OverlayMode = true, CompactPitchRange = true };
+                panel.SetTimeline(TempoMap.Default, [note]);
+                panel.LoadNotes([note], []);
+                panel.Measure(new Size(800, 400));
+                panel.Arrange(new Rect(0, 0, 800, 400));
+                panel.RenderTimelineVisuals();
+
+                NoteOnEvent? inspected = null;
+                panel.InspectNoteRequested += (_, value) => inspected = value;
+                panel.SeekDragStarted += (_, _) => throw new InvalidOperationException("Inspecting must not start a seek.");
+                Assert.Null(panel.CreateNoteContextMenu(new Point(420, 20)));
+                var menu = Assert.IsType<ContextMenu>(panel.CreateNoteContextMenu(new Point(420, 54)));
+                var item = Assert.IsType<MenuItem>(Assert.Single(menu.Items));
+                item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                Assert.Same(note, inspected);
+                Assert.Equal(TimeSpan.Zero, panel.CurrentTime);
+                result.SetResult();
+            }
+            catch (Exception ex)
+            {
+                result.SetException(ex);
+            }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await result.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
     [Fact]
     public async Task VisibleMarkerActivatesItsExactTick()
     {

@@ -46,6 +46,7 @@ public static class NotePairer
             var noteOn = kvp.Value;
             result.Add(new PairedNote
             {
+                SourceEvent = noteOn,
                 StartTick = noteOn.AbsoluteTick,
                 EndTick = noteOn.AbsoluteTick + 480, // Default duration of 1 beat
                 StartTime = noteOn.Time,
@@ -74,6 +75,7 @@ public static class NotePairer
             // Overlapping NoteOn closes previous note immediately
             result.Add(new PairedNote
             {
+                SourceEvent = existing,
                 StartTick = existing.AbsoluteTick,
                 EndTick = noteOn.AbsoluteTick,
                 StartTime = existing.Time,
@@ -104,6 +106,7 @@ public static class NotePairer
         {
             result.Add(new PairedNote
             {
+                SourceEvent = noteOn,
                 StartTick = noteOn.AbsoluteTick,
                 EndTick = endTick,
                 StartTime = noteOn.Time,

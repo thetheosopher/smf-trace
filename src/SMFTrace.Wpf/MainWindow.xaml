@@ -473,6 +473,12 @@
                                     VerticalAlignment="Center"
                                     Background="{DynamicResource ControlBackgroundBrush}"
                                     CornerRadius="2"/>
+                            <Canvas IsHitTestVisible="False">
+                                <Rectangle x:Name="PART_SelectionRange" Canvas.Top="2"
+                                           Height="10" RadiusX="2" RadiusY="2"
+                                           Fill="#A57AC3"
+                                           Visibility="Collapsed"/>
+                            </Canvas>
                             <Track x:Name="PART_Track" Focusable="False">
                                 <Track.DecreaseRepeatButton>
                                     <RepeatButton Style="{x:Null}" IsHitTestVisible="False">
@@ -507,6 +513,11 @@
                                 </Track.Thumb>
                             </Track>
                         </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelectionRangeEnabled" Value="True">
+                                <Setter TargetName="PART_SelectionRange" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -1054,6 +1065,9 @@
                         Minimum="0"
                         Maximum="1"
                         Value="{Binding SeekPosition, Mode=TwoWay}"
+                        SelectionStart="{Binding LoopStartPosition, Mode=OneWay}"
+                        SelectionEnd="{Binding LoopEndPosition, Mode=OneWay}"
+                        IsSelectionRangeEnabled="{Binding HasLoopRange}"
                         Style="{StaticResource SeekSliderStyle}"
                         Thumb.DragStarted="SeekSlider_DragStarted"
                         Thumb.DragCompleted="SeekSlider_DragCompleted"/>

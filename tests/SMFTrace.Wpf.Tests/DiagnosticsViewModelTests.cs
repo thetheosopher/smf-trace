@@ -63,6 +63,26 @@ public class DiagnosticsViewModelTests
         Assert.Equal(3, vm.FilteredEvents.Count);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InspectNoteSelectsExactInstanceAndStopsFollowing(bool hideNotes)
+    {
+        var vm = new DiagnosticsViewModel { FollowPlayback = true, ShowNotes = !hideNotes, ShowOther = false };
+        var first = CreateNoteOn(100, 0);
+        var second = first with { };
+        vm.LoadEvents([first, second, CreateNoteOn(200, 0)]);
+        vm.UpdatePlaybackPosition(200);
+
+        Assert.True(vm.TryInspectNote(second));
+        vm.UpdatePlaybackPosition(300);
+
+        Assert.Same(second, vm.SelectedEvent?.Event);
+        Assert.False(vm.FollowPlayback);
+        Assert.True(vm.ShowNotes);
+        Assert.Equal(hideNotes, vm.ShowOther);
+    }
+
     [Fact]
     public void FilterNotesHidesNotes()
     {
