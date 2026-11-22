@@ -1022,10 +1022,11 @@
             </TabItem>
 
             <!-- ===== Events ===== -->
-            <TabItem Header="Events">
+            <TabItem x:Name="EventsTab" Header="Events">
                 <views:DiagnosticsView x:Name="DiagnosticsView"
                                        DataContext="{Binding Diagnostics}"/>
             </TabItem>
+
         </TabControl>
 
         <!-- =================== SEEK BAR =================== -->
@@ -1035,6 +1036,10 @@
                 BorderThickness="0,1,0,0"
                 Padding="14,8,14,4">
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -1057,6 +1062,26 @@
                            Style="{StaticResource TimeReadoutStyle}"
                            Foreground="{DynamicResource TextMutedBrush}"
                            Margin="12,0,0,0"/>
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Orientation="Horizontal"
+                            Margin="0,4,0,0" Visibility="{Binding IsFileLoaded, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel.Resources>
+                        <Style TargetType="Button">
+                            <Setter Property="Padding" Value="8,2"/>
+                            <Setter Property="Margin" Value="0,0,4,0"/>
+                            <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}"/>
+                        </Style>
+                    </StackPanel.Resources>
+                    <Button Content="Set A" Command="{Binding SetLoopStartCommand}"
+                            ToolTip="Set loop start at the playhead while paused or stopped"/>
+                    <Button Content="Set B" Command="{Binding SetLoopEndCommand}"
+                            ToolTip="Set loop end at the playhead after A while paused or stopped"/>
+                    <Button Content="Clear A/B" Command="{Binding ClearLoopRangeCommand}"
+                            ToolTip="Clear the range and return to the normal loop setting"/>
+                    <TextBlock Text="{Binding LoopRangeLabel}" VerticalAlignment="Center" Margin="8,0,0,0"
+                               Foreground="{DynamicResource TextMutedBrush}"/>
+                </StackPanel>
             </Grid>
         </Border>
 

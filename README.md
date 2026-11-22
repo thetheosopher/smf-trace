@@ -1,6 +1,6 @@
 # SMF Trace
 
-![Release](https://img.shields.io/badge/release-1.2.1.0-0f766e)
+[![Release](https://img.shields.io/badge/release-1.3.0.0-0f766e)](https://github.com/thetheosopher/smf-trace/releases/tag/v1.3.0.0)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-WPF-0B5CAD)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-1F2937)
@@ -21,11 +21,11 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 | Item | Value |
 | --- | --- |
-| Current release | `1.2.1.0` |
+| Current release | `1.3.0.0` |
 | License | MIT |
 | Targets | `net10.0`, `net10.0-windows` |
 | SDK | `.NET 10.0.x` (`global.json` pins `10.0.102` and allows feature-band roll-forward) |
-| Verified build | `.NET SDK 10.0.203` |
+| Verified build | `.NET SDK 10.0.300` |
 | Output root | `output/` |
 
 ## Why SMF Trace
@@ -42,7 +42,8 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 
 | Version | Status | Date | Notes |
 | --- | --- | --- | --- |
-| `1.2.1.0` | Current release | 2026-07 | Refreshes the release metadata and documentation for the latest package build. |
+| `1.3.0.0` | Current release | 2026-11 | Adds Events navigation, a bar/beat ruler with MIDI markers, A/B repeat, and clearer truncated-file errors. |
+| `1.2.1.0` | Previous release | 2026-07 | Refreshes the release metadata and documentation for the latest package build. |
 | `1.2.0.0` | Previous release | 2026-05 | Adds a toolbar About button, restores the overlay-mode track color key, and replaces the panic glyph with a clearer alert icon. |
 | `1.1.0` | Previous release | 2026-05 | Adds command-line MIDI startup with single-file autoplay and multi-file playlist launch in argument order. |
 | `1.0.0` | Previous release | 2026-04 | .NET 10 solution, WPF desktop app, synchronized piano roll, playlist metadata, diagnostics filters, and portable `win-x64` packaging. |
@@ -55,6 +56,8 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 - 30-second default view window with horizontal zoom controls.
 - Vertical zoom for lane density adjustments.
 - Play, pause, stop, panic, previous, next, and loop transport controls.
+- The Piano Roll ruler shows bar and beat boundaries. Click a visible MIDI marker to seek to it while paused or stopped.
+- While paused or stopped, seek to the start and click **Set A**, then seek forward and click **Set B**. Press Play to repeat the range up to (but not including) B; **Clear A/B** restores normal playback.
 - Signed BPM tempo adjustment with a live effective-tempo display.
 - Silent seek scrubbing while paused or stopped, followed by state rebuild on release.
 - Pause sends All Notes Off; stop sends All Notes Off and resets to time 0.
@@ -74,6 +77,7 @@ SMF Trace is a Windows desktop workbench for inspecting and playing Standard MID
 - Category filters for Notes, CC, Program Change, Meta, SysEx, and Other.
 - Meta-only mode and free-text search across event type, summary, and raw bytes.
 - Details pane shows decoded event fields plus raw byte data.
+- Enable **Follow Playback** to track the playhead, or select a row and choose **Go to event** to jump to its MIDI tick while paused or stopped. Selecting a row alone does not seek.
 - Same-tick ordering preserves Program Change before Note On for deterministic inspection.
 
 ### Playlist, Devices, and Workflow

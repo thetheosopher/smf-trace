@@ -102,6 +102,8 @@ public static class MidiFileLoader
                 MidiFileErrorType.EmptyFile);
         }
 
+        var hasMidiHeader = HasMidiHeader(filePath);
+
         try
         {
             var midiFile = MidiFile.Read(filePath);
@@ -113,10 +115,16 @@ public static class MidiFileLoader
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            var isTruncated = hasMidiHeader && IsTruncatedRead(ex);
+            var errorType = isTruncated ? MidiFileErrorType.TruncatedFile : MidiFileErrorType.InvalidFormat;
+            var message = isTruncated
+                ? "Failed to read MIDI file: file ended unexpectedly while parsing track data. The file appears to be truncated or incomplete."
+                : $"Failed to read MIDI file: {ex.Message}";
+
             throw new MidiFileException(
-                $"Failed to read MIDI file: {ex.Message}",
+                message,
                 filePath,
-                MidiFileErrorType.InvalidFormat,
+                errorType,
                 ex);
         }
     }
@@ -132,6 +140,8 @@ public static class MidiFileLoader
     {
         ArgumentNullException.ThrowIfNull(stream);
 
+        var hasMidiHeader = HasMidiHeader(stream);
+
         try
         {
             var midiFile = MidiFile.Read(stream);
@@ -143,11 +153,78 @@ public static class MidiFileLoader
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            var isTruncated = hasMidiHeader && IsTruncatedRead(ex);
+            var errorType = isTruncated ? MidiFileErrorType.TruncatedFile : MidiFileErrorType.InvalidFormat;
+            var message = isTruncated
+                ? "Failed to read MIDI stream: stream ended unexpectedly while parsing track data. The data appears to be truncated or incomplete."
+                : $"Failed to read MIDI stream: {ex.Message}";
+
             throw new MidiFileException(
-                $"Failed to read MIDI stream: {ex.Message}",
+                message,
                 fileName,
-                MidiFileErrorType.InvalidFormat,
+                errorType,
                 ex);
+        }
+    }
+
+    private static bool IsTruncatedRead(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is EndOfStreamException ||
+                current is InvalidChunkSizeException { ChunkId: "MTrk" } chunk &&
+                chunk.ActualSize < chunk.ExpectedSize)
+            {
+                return true;
+            }
+
+            var message = current.Message;
+            if (message.Contains("doesn't have enough bytes", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("not enough bytes", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("past the end of the stream", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasMidiHeader(string filePath)
+    {
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            return HasMidiHeader(stream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static bool HasMidiHeader(Stream stream)
+    {
+        if (!stream.CanRead || !stream.CanSeek)
+        {
+            return false;
+        }
+
+        var originalPosition = stream.Position;
+
+        try
+        {
+            Span<byte> header = stackalloc byte[4];
+            var bytesRead = stream.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
+            return bytesRead == 4
+                && header[0] == 0x4D // M
+                && header[1] == 0x54 // T
+                && header[2] == 0x68 // h
+                && header[3] == 0x64; // d
+        }
+        finally
+        {
+            stream.Position = originalPosition;
         }
     }
 

@@ -66,5 +66,8 @@ public enum MidiFileErrorType
     CorruptedData,
 
     /// <summary>File is too large to process.</summary>
-    FileTooLarge
+    FileTooLarge,
+
+    /// <summary>File ended unexpectedly while reading (truncated or incomplete).</summary>
+    TruncatedFile
 }

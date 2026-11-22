@@ -21,6 +21,7 @@ public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
     private readonly bool _isMeta;
     private readonly bool _isSysExEvent;
     private readonly bool _isChannel;
+    private bool _isPlaybackActive;
 
     public DiagnosticEventViewModel(MidiEventBase evt, int index)
     {
@@ -77,6 +78,22 @@ public sealed class DiagnosticEventViewModel : INotifyPropertyChanged
 
     /// <summary>Category for filtering.</summary>
     public EventCategory Category => _category;
+
+    /// <summary>Whether this event belongs to the most recently reached playback tick.</summary>
+    public bool IsPlaybackActive
+    {
+        get => _isPlaybackActive;
+        internal set
+        {
+            if (_isPlaybackActive == value)
+            {
+                return;
+            }
+
+            _isPlaybackActive = value;
+            OnPropertyChanged();
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

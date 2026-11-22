@@ -43,6 +43,7 @@ public sealed class SequencerEngine : IDisposable
     private TimeSpan _currentTime;
     private PlaybackState _state = PlaybackState.Stopped;
     private PlaybackState _stateBeforeScrub = PlaybackState.Stopped;
+    private (long Start, long End, TimeSpan StartTime, TimeSpan EndTime)? _loopRange;
 
     // Position update interval for smooth UI updates (60 Hz)
     private static readonly TimeSpan PositionUpdateInterval = TimeSpan.FromMilliseconds(1000.0 / 60.0);
@@ -162,6 +163,14 @@ public sealed class SequencerEngine : IDisposable
                 throw new InvalidOperationException("No output device set");
             }
 
+            if (_loopRange is { } range &&
+                (_currentTick < range.Start || _currentTick >= range.End ||
+                 (_state == PlaybackState.Stopped && _currentTick == range.Start)))
+            {
+                RestoreLoopStart(range.Start, range.StartTime, Math.Max(_currentTick, range.End - 1));
+                RaisePositionChanged();
+            }
+
             SetState(PlaybackState.Playing);
             StartPlaybackLoop();
         }
@@ -270,12 +279,16 @@ public sealed class SequencerEngine : IDisposable
             var metric = new MetricTimeSpan(time);
             var tick = TimeConverter.ConvertFrom(metric, _fileData.TempoMap);
 
-            _currentTime = time;
-            _currentTick = tick;
-            _currentEventIndex = _snapshotBuilder.GetResumeEventIndex(tick);
-
-            RaisePositionChanged();
+            SetScrubPosition(tick, time);
         }
+    }
+
+    private void SetScrubPosition(long tick, TimeSpan time)
+    {
+        _currentTime = time;
+        _currentTick = tick;
+        _currentEventIndex = _snapshotBuilder.GetResumeEventIndex(tick);
+        RaisePositionChanged();
     }
 
     /// <summary>
@@ -290,19 +303,20 @@ public sealed class SequencerEngine : IDisposable
                 return;
             }
 
-            // 1. All Notes Off
-            _output?.AllNotesOff();
+            if (_stateBeforeScrub == PlaybackState.Playing && _loopRange is { } range &&
+                (_currentTick < range.Start || _currentTick >= range.End))
+            {
+                RestoreLoopStart(range.Start, range.StartTime, range.End - 1);
+                RaisePositionChanged();
+            }
+            else
+            {
+                _output?.AllNotesOff();
+                var channelStates = _snapshotBuilder.RebuildStateAtTick(_currentTick, _trackActivityMask);
+                EmitStateToDevice(channelStates);
+                _currentEventIndex = _snapshotBuilder.GetResumeEventIndex(_currentTick);
+            }
 
-            // 2. Rebuild channel state at current tick
-            var channelStates = _snapshotBuilder.RebuildStateAtTick(_currentTick, _trackActivityMask);
-
-            // 3. Emit bank/program/controller state to device
-            EmitStateToDevice(channelStates);
-
-            // 4. Update event index for resumption
-            _currentEventIndex = _snapshotBuilder.GetResumeEventIndex(_currentTick);
-
-            // 5. Resume playback if was playing before scrub
             if (_stateBeforeScrub == PlaybackState.Playing)
             {
                 SetState(PlaybackState.Playing);
@@ -324,6 +338,64 @@ public sealed class SequencerEngine : IDisposable
         BeginScrub();
         Scrub(time);
         EndScrub();
+    }
+
+    /// <summary>
+    /// Seeks to a MIDI tick without round-tripping through rounded metric time.
+    /// </summary>
+    public void SeekToTick(long tick)
+    {
+        tick = Math.Clamp(tick, 0, TotalTicks);
+        var time = GetTimeAtTick(tick);
+
+        BeginScrub();
+        lock (_lock)
+        {
+            if (_state == PlaybackState.Scrubbing)
+            {
+                SetScrubPosition(tick, time);
+            }
+        }
+        EndScrub();
+    }
+
+    private TimeSpan GetTimeAtTick(long tick) =>
+        TimeSpan.FromMicroseconds(TimeConverter.ConvertTo<MetricTimeSpan>(tick, _fileData.TempoMap).TotalMicroseconds);
+
+    public void SetLoopRange(long start, long end)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(start);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(end, start);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(end, TotalTicks);
+        var startTime = GetTimeAtTick(start);
+        var endTime = GetTimeAtTick(end);
+        if (endTime <= startTime)
+        {
+            throw new ArgumentOutOfRangeException(nameof(end), "Loop endpoints must have distinct times.");
+        }
+
+        lock (_lock)
+        {
+            EnsureLoopRangeEditable();
+            _loopRange = (start, end, startTime, endTime);
+        }
+    }
+
+    public void ClearLoopRange()
+    {
+        lock (_lock)
+        {
+            EnsureLoopRangeEditable();
+            _loopRange = null;
+        }
+    }
+
+    private void EnsureLoopRangeEditable()
+    {
+        if (_state is PlaybackState.Playing or PlaybackState.Scrubbing)
+        {
+            throw new InvalidOperationException("Pause or stop before editing the loop range.");
+        }
     }
 
     /// <summary>
@@ -429,10 +501,15 @@ public sealed class SequencerEngine : IDisposable
             int eventIndex;
             bool shouldStop = false;
             bool shouldLoop = false;
+            (long Start, long End, TimeSpan StartTime, TimeSpan EndTime)? range;
+            bool wrapRange;
 
             lock (_lock)
             {
-                if (_currentEventIndex >= _fileData.Events.Count)
+                range = _loopRange;
+                wrapRange = range is { } activeRange && (_currentEventIndex >= _fileData.Events.Count ||
+                    _fileData.Events[_currentEventIndex].AbsoluteTick >= activeRange.End);
+                if (!wrapRange && _currentEventIndex >= _fileData.Events.Count)
                 {
                     // End of file
                     if (_options.LoopPlayback)
@@ -461,13 +538,14 @@ public sealed class SequencerEngine : IDisposable
 
             lock (_lock)
             {
-                nextEvent = _fileData.Events[_currentEventIndex];
-                eventTime = nextEvent.Time;
+                nextEvent = wrapRange ? null : _fileData.Events[_currentEventIndex];
+                eventTime = nextEvent?.Time ?? range!.Value.EndTime;
                 eventIndex = _currentEventIndex;
 
                 var elapsed = stopwatch.Elapsed;
                 var speed = GetTempoAdjustedSpeed(_currentTick, _tempoAdjustmentBpm);
                 _currentTime = GetScaledTime(ref startTime, elapsed, ref lastSpeed, speed);
+                if (wrapRange && _currentTime > eventTime) _currentTime = eventTime;
                 _currentTick = EstimateTickAtTime(eventIndex, _currentTime);
             }
 
@@ -492,6 +570,7 @@ public sealed class SequencerEngine : IDisposable
                         var elapsed = stopwatch.Elapsed;
                         var speedForUpdate = GetTempoAdjustedSpeed(_currentTick, _tempoAdjustmentBpm);
                         _currentTime = GetScaledTime(ref startTime, elapsed, ref lastSpeed, speedForUpdate);
+                        if (wrapRange && _currentTime > eventTime) _currentTime = eventTime;
                         _currentTick = EstimateTickAtTime(eventIndex, _currentTime);
                     }
 
@@ -515,7 +594,21 @@ public sealed class SequencerEngine : IDisposable
             // Dispatch the event
             lock (_lock)
             {
-                if (_currentEventIndex == eventIndex)
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+                if (nextEvent == null && range is { } bounds)
+                {
+                    RestoreLoopStart(bounds.Start, bounds.StartTime, bounds.End - 1);
+                    startTime = bounds.StartTime;
+                    lastSpeed = GetTempoAdjustedSpeed(bounds.Start, _tempoAdjustmentBpm);
+                    stopwatch.Restart();
+                    _lastPositionUpdate = TimeSpan.Zero;
+                    RaisePositionChanged();
+                    continue;
+                }
+                if (nextEvent != null && _currentEventIndex == eventIndex)
                 {
                     DispatchEvent(nextEvent);
                     _currentEventIndex++;
@@ -628,6 +721,54 @@ public sealed class SequencerEngine : IDisposable
         }
 
         stopwatch.Restart();
+    }
+
+    private void RestoreLoopStart(long tick, TimeSpan time, long previousTick)
+    {
+        if (_output is { } output)
+        {
+            var previous = _snapshotBuilder.RebuildStateAtTick(previousTick);
+            var start = _snapshotBuilder.RebuildStateAtTick(tick, _trackActivityMask);
+            for (byte channel = 0; channel < 16; channel++)
+            {
+                if (previous[channel].Controllers.ContainsKey(64))
+                    output.SendShortMessage((byte)(0xB0 | channel), 64, 0);
+                if (previous[channel].Controllers.ContainsKey(66))
+                    output.SendShortMessage((byte)(0xB0 | channel), 66, 0);
+            }
+            output.AllNotesOff();
+            ClearActiveNotes();
+
+            for (byte channel = 0; channel < 16; channel++)
+            {
+                var oldState = previous[channel];
+                var newState = start[channel];
+                var status = (byte)(0xB0 | channel);
+                if (!newState.HasProgramChange &&
+                    (oldState.HasProgramChange || oldState.BankMsb != newState.BankMsb || oldState.BankLsb != newState.BankLsb))
+                {
+                    output.SendShortMessage(status, 0, newState.BankMsb);
+                    output.SendShortMessage(status, 32, newState.BankLsb);
+                    if (oldState.HasProgramChange)
+                        output.SendShortMessage((byte)(0xC0 | channel), newState.Program, 0);
+                }
+                foreach (var cc in oldState.Controllers.Keys)
+                {
+                    if (cc is 0 or 32 or 64 or 66 or >= 120 || newState.Controllers.ContainsKey(cc)) continue;
+                    var value = cc switch { 7 => 100, 8 or 10 => 64, 11 => 127, _ => 0 };
+                    output.SendShortMessage(status, cc, (byte)value);
+                }
+                if (oldState.PitchBend != newState.PitchBend)
+                    output.SendShortMessage((byte)(0xE0 | channel), (byte)(newState.PitchBend & 0x7F), (byte)(newState.PitchBend >> 7));
+                if (oldState.ChannelPressure != newState.ChannelPressure)
+                    output.SendShortMessage((byte)(0xD0 | channel), newState.ChannelPressure, 0);
+            }
+            EmitStateToDevice(start);
+        }
+
+        _currentEventIndex = _snapshotBuilder.GetResumeEventIndex(tick);
+        _currentTick = tick;
+        _currentTime = time;
     }
 
     private void DispatchEvent(MidiEventBase evt)

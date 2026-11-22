@@ -140,4 +140,9 @@ public sealed class AppSettings
     /// Meta-only mode in diagnostics.
     /// </summary>
     public bool DiagMetaOnlyMode { get; set; }
+
+    /// <summary>
+    /// Keep the selected diagnostics event synchronized with playback.
+    /// </summary>
+    public bool DiagFollowPlayback { get; set; }
 }

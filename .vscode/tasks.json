@@ -3,23 +3,27 @@
 	"tasks": [
 		{
 			"label": "build-solution",
-			"type": "shell",
+			"type": "process",
 			"command": "dotnet",
 			"args": [
 				"build",
-				"c:\\Projects\\Applications\\SMF Trace\\SMFTrace.slnx"
+				"${workspaceFolder}\\SMFTrace.slnx",
+				"/p:Platform=Any CPU"
 			],
-			"problemMatcher": [],
+			"problemMatcher": [
+				"$msCompile"
+			],
 			"group": "build"
 		},
 		{
 			"label": "test-solution",
-			"type": "shell",
+			"type": "process",
 			"command": "dotnet",
 			"args": [
 				"test",
-				"c:\\Projects\\Applications\\SMF Trace\\SMFTrace.slnx",
-				"--no-build"
+				"${workspaceFolder}\\SMFTrace.slnx",
+				"--no-build",
+				"/p:Platform=Any CPU"
 			],
 			"isBackground": false,
 			"problemMatcher": [

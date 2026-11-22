@@ -17,6 +17,9 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
     private List<DiagnosticEventViewModel> _allEventViewModels = [];
     private ObservableCollection<DiagnosticEventViewModel> _filteredEvents = [];
     private DiagnosticEventViewModel? _selectedEvent;
+    private List<DiagnosticEventViewModel> _playbackActiveEvents = [];
+    private bool _followPlayback;
+    private long _playbackTick;
 
     // Filters
     private bool _showNotes = true;
@@ -54,6 +57,29 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
     }
 
     public bool HasSelection => _selectedEvent != null;
+
+    public IReadOnlyList<DiagnosticEventViewModel> PlaybackActiveEvents => _playbackActiveEvents;
+
+    public bool FollowPlayback
+    {
+        get => _followPlayback;
+        set
+        {
+            if (!SetField(ref _followPlayback, value))
+            {
+                return;
+            }
+
+            if (value)
+            {
+                SelectEventAtPlaybackTick();
+            }
+            else
+            {
+                SetPlaybackActiveEvents([]);
+            }
+        }
+    }
 
     #region Filters
 
@@ -206,6 +232,15 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
         ApplyFilters();
     }
 
+    public void UpdatePlaybackPosition(long tick)
+    {
+        _playbackTick = tick;
+        if (_followPlayback)
+        {
+            SelectEventAtPlaybackTick();
+        }
+    }
+
     /// <summary>
     /// Clears all filters and shows all events.
     /// </summary>
@@ -252,6 +287,79 @@ public sealed class DiagnosticsViewModel : INotifyPropertyChanged
         }
 
         FilteredEvents = new ObservableCollection<DiagnosticEventViewModel>(filtered);
+        if (_followPlayback)
+        {
+            SelectEventAtPlaybackTick();
+        }
+        else if (SelectedEvent is { } selectedEvent && !filtered.Contains(selectedEvent))
+        {
+            SelectedEvent = null;
+        }
+    }
+
+    private void SelectEventAtPlaybackTick()
+    {
+        var low = 0;
+        var high = _filteredEvents.Count - 1;
+        var match = -1;
+
+        while (low <= high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (_filteredEvents[middle].Tick <= _playbackTick)
+            {
+                match = middle;
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle - 1;
+            }
+        }
+
+        if (match < 0)
+        {
+            SelectedEvent = null;
+            SetPlaybackActiveEvents([]);
+            return;
+        }
+
+        SelectedEvent = _filteredEvents[match];
+        var activeTick = _filteredEvents[match].Tick;
+        var firstAtTick = match;
+        while (firstAtTick > 0 && _filteredEvents[firstAtTick - 1].Tick == activeTick)
+        {
+            firstAtTick--;
+        }
+
+        var activeEvents = new List<DiagnosticEventViewModel>(match - firstAtTick + 1);
+        for (var index = firstAtTick; index <= match; index++)
+        {
+            activeEvents.Add(_filteredEvents[index]);
+        }
+
+        SetPlaybackActiveEvents(activeEvents);
+    }
+
+    private void SetPlaybackActiveEvents(List<DiagnosticEventViewModel> activeEvents)
+    {
+        if (_playbackActiveEvents.SequenceEqual(activeEvents))
+        {
+            return;
+        }
+
+        foreach (var eventViewModel in _playbackActiveEvents)
+        {
+            eventViewModel.IsPlaybackActive = false;
+        }
+
+        _playbackActiveEvents = activeEvents;
+        foreach (var eventViewModel in _playbackActiveEvents)
+        {
+            eventViewModel.IsPlaybackActive = true;
+        }
+
+        OnPropertyChanged(nameof(PlaybackActiveEvents));
     }
 
     private static List<DiagnosticEventViewModel> BuildEventViewModels(IReadOnlyList<MidiEventBase> events)

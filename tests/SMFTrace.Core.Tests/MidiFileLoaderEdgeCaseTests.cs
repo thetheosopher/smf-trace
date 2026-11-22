@@ -80,6 +80,61 @@ public class MidiFileLoaderEdgeCaseTests
     }
 
     [Fact]
+    public void LoadTruncatedFileThrowsTruncatedFileException()
+    {
+        // Arrange: valid header + declared track length larger than payload.
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllBytes(tempFile,
+            [
+                0x4D, 0x54, 0x68, 0x64,
+                0x00, 0x00, 0x00, 0x06,
+                0x00, 0x00,
+                0x00, 0x01,
+                0x01, 0xE0,
+                0x4D, 0x54, 0x72, 0x6B,
+                0x00, 0x00, 0x00, 0x08,
+                0x00, 0x90, 0x3C
+            ]);
+
+            // Act & Assert
+            var ex = Assert.Throws<MidiFileException>(() => MidiFileLoader.Load(tempFile));
+            Assert.Equal(MidiFileErrorType.TruncatedFile, ex.ErrorType);
+            Assert.Contains("truncated", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LoadTruncatedStreamThrowsTruncatedFileException(bool endsAtEventBoundary)
+    {
+        // Arrange: valid header + declared track length larger than payload.
+        using var stream = new MemoryStream(
+        [
+            0x4D, 0x54, 0x68, 0x64,
+            0x00, 0x00, 0x00, 0x06,
+            0x00, 0x00,
+            0x00, 0x01,
+            0x01, 0xE0,
+            0x4D, 0x54, 0x72, 0x6B,
+            0x00, 0x00, 0x00, 0x08,
+            0x00, 0x90, 0x3C,
+            .. (endsAtEventBoundary ? new byte[] { 0x40 } : [])
+        ]);
+
+        // Act & Assert
+        var ex = Assert.Throws<MidiFileException>(() => MidiFileLoader.Load(stream, "truncated.mid"));
+        Assert.Equal(MidiFileErrorType.TruncatedFile, ex.ErrorType);
+        Assert.Contains("truncated", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void LoadPreservesUnknownMetaEvents()
     {
         // Arrange

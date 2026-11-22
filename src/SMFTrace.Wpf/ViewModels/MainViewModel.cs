@@ -11,6 +11,7 @@ using System.Windows.Input;
 using Microsoft.Win32;
 using SMFTrace.Core.Models;
 using SMFTrace.Core.Sequencer;
+using SMFTrace.Wpf.Controls;
 using SMFTrace.MidiInterop;
 using SMFTrace.Wpf.Settings;
 
@@ -61,6 +62,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private double _minTempoAdjustmentBpm = -110.0;
     private double _maxTempoAdjustmentBpm = 360.0;
     private bool _isSeeking;
+    private bool _isStopping;
+    private (long Tick, TimeSpan Time)? _loopStart;
+    private TimeSpan? _loopEnd;
     private bool _forceStopPosition;
     private bool _userStopRequested;
     private bool _isPlaylistTransition;
@@ -73,6 +77,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private InstrumentOption? _selectedDefaultInstrument;
     private bool _hasLyrics;
     private int _currentLyricIndex = -1;
+    private bool _isDiagnosticsTabActive;
     private volatile bool _disposed;
 
     private const double MinPitchRowHeight = 8.0;
@@ -127,6 +132,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         VerticalZoomInCommand = new RelayCommand(VerticalZoomIn);
         VerticalZoomOutCommand = new RelayCommand(VerticalZoomOut);
         AddFilesCommand = new RelayCommand(AddFiles);
+        GoToEventCommand = new RelayCommand(GoToEvent, () => CanGoToEvent);
+        SetLoopStartCommand = new RelayCommand(SetLoopStart, () => CanEditLoop && _engine!.CurrentTick < _engine.TotalTicks);
+        SetLoopEndCommand = new RelayCommand(SetLoopEnd, () => CanEditLoop && _loopStart is { } start &&
+            _engine!.CurrentTick > start.Tick && _engine.CurrentTime > start.Time);
+        ClearLoopRangeCommand = new RelayCommand(ClearLoopRange, () => CanEditLoop && _loopStart.HasValue);
+        Diagnostics.PropertyChanged += OnDiagnosticsPropertyChanged;
 
         // Start device enumeration
         RefreshDevices();
@@ -159,6 +170,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         Diagnostics.ShowSysEx = s.DiagShowSysEx;
         Diagnostics.ShowOther = s.DiagShowOther;
         Diagnostics.MetaOnlyMode = s.DiagMetaOnlyMode;
+        Diagnostics.FollowPlayback = s.DiagFollowPlayback;
 
         _selectedDefaultInstrument = DefaultInstruments.FirstOrDefault(
             instrument => instrument.Program == _defaultInstrumentProgram)
@@ -198,6 +210,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         s.DiagShowSysEx = Diagnostics.ShowSysEx;
         s.DiagShowOther = Diagnostics.ShowOther;
         s.DiagMetaOnlyMode = Diagnostics.MetaOnlyMode;
+        s.DiagFollowPlayback = Diagnostics.FollowPlayback;
 
         _settings.Save();
     }
@@ -525,6 +538,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (SetField(ref _isLoading, value))
             {
                 OnPropertyChanged(nameof(IsBusy));
+                CommandManager.InvalidateRequerySuggested();
             }
         }
     }
@@ -613,6 +627,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     }
 
     public IReadOnlyList<MidiEventBase> Events => _fileData?.Events ?? [];
+    public Melanchall.DryWetMidi.Interaction.TempoMap? TimelineTempoMap => _fileData?.TempoMap;
     public IReadOnlyList<TrackInfo> Tracks => _fileData?.Tracks ?? [];
     public ChannelState[] ChannelStates => _channelStates;
     public bool HasTrackPlaybackStates => TrackPlaybackStates.Count > 0;
@@ -679,6 +694,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand VerticalZoomInCommand { get; }
     public ICommand VerticalZoomOutCommand { get; }
     public ICommand AddFilesCommand { get; }
+    public ICommand GoToEventCommand { get; }
+    public ICommand SetLoopStartCommand { get; }
+    public ICommand SetLoopEndCommand { get; }
+    public ICommand ClearLoopRangeCommand { get; }
+
+    public string LoopRangeLabel => _loopStart is not { } start ? "A/B loop off" :
+        _loopEnd is { } end ? $"A {start.Time:mm\\:ss\\.fff}   B {end:mm\\:ss\\.fff}" :
+        $"A {start.Time:mm\\:ss\\.fff} — seek forward to set B";
 
     #endregion
 
@@ -720,6 +743,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             IsFileLoaded = false;
+            ResetLoopSelection();
             ClearLyrics();
             ResetTrackPlaybackStates();
             // Stop any existing playback
@@ -819,6 +843,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 Core.MidiFileErrorType.EmptyFile => "Empty File",
                 Core.MidiFileErrorType.CorruptedData => "Corrupted File",
                 Core.MidiFileErrorType.FileTooLarge => "File Too Large",
+                Core.MidiFileErrorType.TruncatedFile => "Incomplete MIDI File",
                 _ => "Error"
             };
 
@@ -1343,6 +1368,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private async void Stop()
     {
+        _isStopping = true;
+        CommandManager.InvalidateRequerySuggested();
         _userStopRequested = true;
         _forceStopPosition = _engine != null;
         _isSeeking = false;
@@ -1354,6 +1381,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         _forceStopPosition = false;
         CurrentTime = TimeSpan.Zero;
+        if (_isDiagnosticsTabActive)
+        {
+            Diagnostics.UpdatePlaybackPosition(0);
+        }
         OnPropertyChanged(nameof(SeekPosition));
 
         if (_snapshotBuilder != null)
@@ -1372,13 +1403,83 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
 
         _userStopRequested = false;
+        _isStopping = false;
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private bool CanEditLoop =>
+        !_disposed && IsFileLoaded && !IsLoading && !_isSeeking && !_isStopping &&
+        PlaybackState is PlaybackState.Paused or PlaybackState.Stopped &&
+        _engine?.State is PlaybackState.Paused or PlaybackState.Stopped;
+
+    private bool CanGoToEvent => CanEditLoop && Diagnostics.HasSelection;
+
+    private void SetLoopStart()
+    {
+        if (!SetLoopStartCommand.CanExecute(null) || _engine is not { } engine) return;
+
+        engine.ClearLoopRange();
+        _loopStart = (engine.CurrentTick, engine.CurrentTime);
+        _loopEnd = null;
+        OnLoopSelectionChanged();
+    }
+
+    private void SetLoopEnd()
+    {
+        if (!SetLoopEndCommand.CanExecute(null) || _engine is not { } engine || _loopStart is not { } start) return;
+
+        engine.SetLoopRange(start.Tick, engine.CurrentTick);
+        _loopEnd = engine.CurrentTime;
+        OnLoopSelectionChanged();
+    }
+
+    private void ClearLoopRange()
+    {
+        if (!CanEditLoop || _engine is not { } engine) return;
+
+        engine.ClearLoopRange();
+        ResetLoopSelection();
+    }
+
+    private void ResetLoopSelection()
+    {
+        _loopStart = null;
+        _loopEnd = null;
+        OnLoopSelectionChanged();
+    }
+
+    private void OnLoopSelectionChanged()
+    {
+        OnPropertyChanged(nameof(LoopRangeLabel));
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private void GoToEvent()
+    {
+        if (CanGoToEvent && Diagnostics.SelectedEvent is { } selectedEvent)
+        {
+            SeekToMidiTick(selectedEvent.Tick);
+        }
+    }
+
+    public void SeekToMidiTick(long tick)
+    {
+        if (!_disposed && IsFileLoaded && !IsLoading && !_isSeeking && !_isStopping &&
+            _engine is { State: PlaybackState.Paused or PlaybackState.Stopped } engine)
+        {
+            engine.SeekToTick(tick);
+            RefreshChannelStatesAtSeekPosition();
+        }
     }
 
     private void SeekTo(TimeSpan time)
     {
         _engine?.SeekTo(time);
+        RefreshChannelStatesAtSeekPosition();
+    }
 
-        // Update channel states
+    private void RefreshChannelStatesAtSeekPosition()
+    {
         if (_snapshotBuilder != null && _engine != null)
         {
             _channelStates = _snapshotBuilder.RebuildStateAtTick(_engine.CurrentTick);
@@ -1421,14 +1522,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (_isSeeking)
         {
             _engine?.Scrub(time);
-
-            if (_snapshotBuilder != null && _engine != null)
-            {
-                _channelStates = _snapshotBuilder.RebuildStateAtTick(_engine.CurrentTick);
-                ApplyDefaultInstrumentToChannelStates();
-                OnPropertyChanged(nameof(ChannelStates));
-            }
-
+            RefreshChannelStatesAtSeekPosition();
             return;
         }
 
@@ -1446,6 +1540,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _engine?.EndScrub();
         _isSeeking = false;
         OnPropertyChanged(nameof(SeekPosition));
+        CommandManager.InvalidateRequerySuggested();
     }
 
     #endregion
@@ -1812,6 +1907,23 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     #region Event Handlers
 
+    private void OnDiagnosticsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DiagnosticsViewModel.HasSelection))
+        {
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    public void SetDiagnosticsTabActive(bool isActive)
+    {
+        _isDiagnosticsTabActive = isActive;
+        if (isActive)
+        {
+            Diagnostics.UpdatePlaybackPosition(_engine?.CurrentTick ?? 0);
+        }
+    }
+
     private void OnPositionChanged(object? sender, PositionChangedEventArgs e)
     {
         if (_disposed) return;
@@ -1831,13 +1943,19 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 _forceStopPosition = false;
             }
 
+            var wrappedLoop = _loopEnd.HasValue && e.Time < CurrentTime;
             CurrentTime = e.Time;
 
             // Tempo is precomputed by the engine and included in position updates.
             CurrentTempo = e.TempoBpm;
 
+            if (_isDiagnosticsTabActive)
+            {
+                Diagnostics.UpdatePlaybackPosition(e.Tick);
+            }
+
             // Rebuild channel state only when relevant state events were dispatched.
-            if (_snapshotBuilder != null && Interlocked.Exchange(ref _channelStateDirtyFlag, 0) == 1)
+            if (_snapshotBuilder != null && (Interlocked.Exchange(ref _channelStateDirtyFlag, 0) == 1 || wrappedLoop))
             {
                 _channelStates = _snapshotBuilder.RebuildStateAtTick(e.Tick);
                 ApplyDefaultInstrumentToChannelStates();
@@ -1919,7 +2037,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     return;
                 }
 
-                _ = HandlePlaybackEndedAsync();
+                if (e.OldState != PlaybackState.Scrubbing)
+                {
+                    _ = HandlePlaybackEndedAsync();
+                }
             }
         });
     }
@@ -1984,6 +2105,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         PlaylistEntries.CollectionChanged -= OnPlaylistChanged;
         TrackPlaybackStates.CollectionChanged -= OnTrackPlaybackStatesChanged;
+        Diagnostics.PropertyChanged -= OnDiagnosticsPropertyChanged;
         foreach (var track in TrackPlaybackStates)
         {
             track.PropertyChanged -= OnTrackPlaybackStateChanged;

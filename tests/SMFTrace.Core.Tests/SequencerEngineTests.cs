@@ -292,6 +292,86 @@ public class SequencerEngineTests
     }
 
     [Fact]
+    public void SeekToTickRebuildsStateAtExactEventTickWithoutStartingPlayback()
+    {
+        using var midi = new MemoryStream([
+            0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, 0x01, 0xE0,
+            0x4D, 0x54, 0x72, 0x6B, 0, 0, 0, 11,
+            1, 0xC0, 42,
+            0, 0xB0, 7, 88,
+            0, 0xFF, 0x2F, 0
+        ]);
+        var fileData = MidiFileLoader.Load(midi);
+        using var engine = new SequencerEngine(fileData);
+        var output = new MockSequencerOutput();
+        engine.SetOutput(output);
+        output.Clear();
+
+        engine.SeekToTick(1);
+
+        Assert.Equal(1, engine.CurrentTick);
+        Assert.Equal(fileData.Events[0].Time, engine.CurrentTime);
+        Assert.Equal(PlaybackState.Stopped, engine.State);
+        Assert.Equal(1, output.AllNotesOffCount);
+        Assert.Contains(((byte)0xC0, (byte)42, (byte)0), output.Messages);
+        Assert.Contains(((byte)0xB0, (byte)7, (byte)88), output.Messages);
+    }
+
+    [Fact]
+    public async Task LoopRangeWrapsBeforeBAndRestoresStateBeforeReplayingA()
+    {
+        using var midi = new MemoryStream([
+            0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, 0x01, 0xE0,
+            0x4D, 0x54, 0x72, 0x6B, 0, 0, 0, 34,
+            0, 0xB0, 0, 3,
+            0, 0xC0, 12,
+            0, 0xB0, 7, 90,
+            24, 0x90, 60, 100,
+            12, 0xB0, 64, 127,
+            0, 0xC0, 42,
+            0, 0xB0, 7, 20,
+            12, 0x90, 61, 100,
+            0, 0xFF, 0x2F, 0
+        ]);
+        using var engine = new SequencerEngine(MidiFileLoader.Load(midi));
+        var output = new MockSequencerOutput();
+        engine.SetOutput(output);
+        engine.SetLoopRange(24, 48);
+        var wrapped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var atStart = 0;
+        engine.PositionChanged += (_, e) =>
+        {
+            if (e.Tick == 24 && ++atStart == 3) wrapped.TrySetResult();
+        };
+
+        engine.Play();
+        await wrapped.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        engine.Pause();
+
+        var messages = output.Messages.ToList();
+        Assert.DoesNotContain(((byte)0x90, (byte)61, (byte)100), messages);
+        Assert.True(output.AllNotesOffCount >= 3);
+        var sustainRelease = messages.IndexOf((0xB0, 64, 0));
+        Assert.True(sustainRelease >= 0);
+        var restoredBank = messages.IndexOf((0xB0, 0, 3), sustainRelease + 1);
+        Assert.True(restoredBank > sustainRelease);
+        var restoredProgram = messages.IndexOf((0xC0, 12, 0), restoredBank + 1);
+        Assert.True(restoredProgram > restoredBank);
+        var restoredVolume = messages.IndexOf((0xB0, 7, 90), restoredProgram + 1);
+        Assert.True(restoredVolume > restoredProgram);
+        Assert.True(messages.IndexOf((0x90, 60, 100), restoredVolume + 1) > restoredVolume);
+
+        engine.ClearLoopRange();
+        engine.SeekToTick(48);
+        var playedB = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        engine.EventDispatched += (_, _) => playedB.TrySetResult();
+        engine.Play();
+        await playedB.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        engine.Pause();
+        Assert.Contains(((byte)0x90, (byte)61, (byte)100), output.Messages);
+    }
+
+    [Fact]
     public void SeekToResumesPlaybackIfWasPlaying()
     {
         // Arrange

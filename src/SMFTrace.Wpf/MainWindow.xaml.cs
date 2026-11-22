@@ -46,9 +46,12 @@ public partial class MainWindow : Window
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.LiveNoteChanged += OnLiveNoteChanged;
         _viewModel.AllNotesCleared += OnAllNotesCleared;
+        MainTabs.SelectionChanged += OnMainTabsSelectionChanged;
+        UpdateActiveTabState();
         PianoRoll.SeekDragStarted += OnPianoRollSeekDragStarted;
         PianoRoll.SeekDragDelta += OnPianoRollSeekDragDelta;
         PianoRoll.SeekDragCompleted += OnPianoRollSeekDragCompleted;
+        PianoRoll.MarkerClicked += OnPianoRollMarkerClicked;
 
         Closing += OnClosing;
         StateChanged += OnStateChanged;
@@ -150,6 +153,7 @@ public partial class MainWindow : Window
             case nameof(MainViewModel.Events):
             case nameof(MainViewModel.Tracks):
                 // Reload notes in piano roll
+                PianoRoll.SetTimeline(_viewModel.TimelineTempoMap, _viewModel.Events);
                 PianoRoll.LoadNotes(_viewModel.Events, _viewModel.Tracks);
                 // Also update instrument names since lanes were rebuilt
                 PianoRoll.UpdateInstrumentNames(_viewModel.ChannelStates);
@@ -252,10 +256,25 @@ public partial class MainWindow : Window
 
         _viewModel.LiveNoteChanged -= OnLiveNoteChanged;
         _viewModel.AllNotesCleared -= OnAllNotesCleared;
+        MainTabs.SelectionChanged -= OnMainTabsSelectionChanged;
         PianoRoll.SeekDragStarted -= OnPianoRollSeekDragStarted;
         PianoRoll.SeekDragDelta -= OnPianoRollSeekDragDelta;
         PianoRoll.SeekDragCompleted -= OnPianoRollSeekDragCompleted;
+        PianoRoll.MarkerClicked -= OnPianoRollMarkerClicked;
         _viewModel.Dispose();
+    }
+
+    private void OnMainTabsSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, MainTabs))
+        {
+            UpdateActiveTabState();
+        }
+    }
+
+    private void UpdateActiveTabState()
+    {
+        _viewModel.SetDiagnosticsTabActive(ReferenceEquals(MainTabs.SelectedItem, EventsTab));
     }
 
     private void OnLiveNoteChanged(object? sender, LiveNoteChanged e)
@@ -282,6 +301,8 @@ public partial class MainWindow : Window
     {
         _viewModel.BeginSeek();
     }
+
+    private void OnPianoRollMarkerClicked(object? sender, long tick) => _viewModel.SeekToMidiTick(tick);
 
     private void OnPianoRollSeekDragDelta(object? sender, PianoRollSeekEventArgs e)
     {

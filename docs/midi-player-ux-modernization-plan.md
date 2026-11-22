@@ -676,7 +676,7 @@ any layout changes; no regressions in piano-roll behavior.
 | Loop region on the scrubber and on the roll's ruler | Direct manipulation | Med | Drag to set, drag edges to resize, double-click to clear |
 | Speed control (0.25×–2×) separate from tempo | Practice/audition | Med | Speed and tempo can be changed independently per spec |
 | Track strip with Mute/Solo/Volume/Program | Mixer-grade control | Med | Replaces read-only legend; per-track mute/solo work end-to-end |
-| Auto-scroll + click-to-seek in Events view | Connects views | Med | Selected event seeks; playhead-following toggle works |
+| Follow Playback + Go to event in Events view | Connects views | Med | Follow Playback tracks the playhead; Go to event seeks to the selected tick while paused or stopped; selecting a row alone does not seek |
 | Event filter chips with counts | Faster filtering | Low | Filter row shows live counts per family |
 | Search box upgrade (regex, field selector) in Events | Power use | Low | Regex toggle + scope dropdown |
 | Keyboard shortcuts cheat sheet (`?`) | Discoverability | Low | Overlay lists all shortcuts grouped by area |
@@ -747,10 +747,10 @@ direction (B + A mode + D mode).
 | Files | Drag-and-drop open (Shift = append to playlist) | ⚪ |  |  |  |
 | Files | Recent files menu + persistence | ⚪ |  |  |  |
 | Files | Ctrl+P quick switcher over recents + playlist | ⚪ |  |  |  |
-| Playback | Loop region on scrubber and ruler (drag to set/resize) | ⚪ |  |  |  |
+| Playback | Loop region on scrubber and ruler (drag to set/resize) | 🟡 | 2026-11-22 |  | Set A, Set B, and Clear A/B in v1.3.0.0; drag-to-edit remains deferred |
 | Playback | Speed control (0.25×–2×) independent of tempo | ⚪ |  |  |  |
 | Tracks | Track strip with Mute / Solo / Volume / Program | ⚪ |  |  |  |
-| Events | Auto-scroll + click-to-seek; current row highlight | ⚪ |  |  |  |
+| Events | Follow Playback, current row highlight, and Go to event | 🟢 | 2026-11-22 | 2026-11-22 | Included in v1.3.0.0 |
 | Events | Filter chips with live counts per family | ⚪ |  |  |  |
 | Events | Search upgrade: regex + scope selector | ⚪ |  |  |  |
 | Discoverability | Shortcut cheat sheet overlay (`?`) | ⚪ |  |  |  |
@@ -765,7 +765,7 @@ direction (B + A mode + D mode).
 | Nav | Segmented view switcher (replaces tab strip) | ⚪ |  |  |  |
 | Layout | Left rail: Track Inspector / Mixer (collapsible) | ⚪ |  |  |  |
 | Layout | Right rail: Inspector (note / event / file metadata) | ⚪ |  |  |  |
-| Roll | Measure/beat ruler with tempo & marker chips | ⚪ |  |  |  |
+| Roll | Measure/beat ruler with tempo & marker chips | 🟡 | 2026-11-22 |  | Ruler and clickable MIDI markers in v1.3.0.0; tempo chips remain deferred |
 | Visualization | Mini-keyboard dock with currently sounding notes | ⚪ |  |  |  |
 | Timeline | Full-width scrubber with hover preview + markers + loop | ⚪ |  |  |  |
 
@@ -797,6 +797,7 @@ direction (B + A mode + D mode).
 | Date | Change | Linked files / PR |
 |---|---|---|
 | 2026-05-04 | Plan created. |  |
+| 2026-11-22 | v1.3.0.0 adds Events navigation, a musical ruler with marker seeking, and A/B repeat controls. | [v1.3.0.0](https://github.com/thetheosopher/smf-trace/releases/tag/v1.3.0.0) |
 
 ---
 

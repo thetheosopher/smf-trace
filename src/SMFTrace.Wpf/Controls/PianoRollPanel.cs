@@ -8,6 +8,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using Melanchall.DryWetMidi.Interaction;
 using SMFTrace.Core.Models;
 using SMFTrace.Wpf.ViewModels;
 
@@ -22,6 +23,24 @@ public class PianoRollPanel : FrameworkElement
     public event EventHandler<PianoRollSeekEventArgs>? SeekDragStarted;
     public event EventHandler<PianoRollSeekEventArgs>? SeekDragDelta;
     public event EventHandler<PianoRollSeekEventArgs>? SeekDragCompleted;
+    public event EventHandler<long>? MarkerClicked;
+
+    private const double RulerHeight = 42;
+    private TempoMap? _timelineTempoMap;
+    private MetaEvent[] _timelineMarkers = [];
+    private readonly List<(Rect Bounds, MetaEvent Marker)> _markerHits = [];
+
+    public void SetTimeline(TempoMap? tempoMap, IReadOnlyList<MidiEventBase> events)
+    {
+        _timelineTempoMap = tempoMap;
+        _timelineMarkers = events.OfType<MetaEvent>().Where(e => e.MetaType == 0x06).ToArray();
+        _markerHits.Clear();
+        MarkAllDirty();
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
+
+    private double TimelineHeight => _timelineTempoMap is null ? 0 : RulerHeight;
 
     #region Dependency Properties
 
@@ -956,7 +975,7 @@ public class PianoRollPanel : FrameworkElement
     {
         GetVisibleVerticalRange(out var top, out var bottom);
 
-        var lyricsHeight = GetLyricsLaneHeight();
+        var lyricsHeight = TimelineHeight + GetLyricsLaneHeight();
         if (lyricsHeight > 0)
         {
             top = Math.Max(top, lyricsHeight);
@@ -1106,7 +1125,7 @@ public class PianoRollPanel : FrameworkElement
                 pitchCount = _settings.PitchHigh - _settings.PitchLow + 1;
             }
 
-            var desiredHeight = pitchCount * _settings.PitchRowHeight + GetLyricsLaneHeight();
+            var desiredHeight = pitchCount * _settings.PitchRowHeight + TimelineHeight + GetLyricsLaneHeight();
             return new Size(
                 double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width,
                 desiredHeight);
@@ -1155,6 +1174,16 @@ public class PianoRollPanel : FrameworkElement
         }
 
         var point = e.GetPosition(this);
+        if (TryActivateMarker(point))
+        {
+            e.Handled = true;
+            return;
+        }
+        if (_timelineTempoMap != null && point.Y < RulerHeight && point.X >= PianoRollSettings.LaneHeaderWidth)
+        {
+            e.Handled = true;
+            return;
+        }
         if (!TryStartSeekDrag(point))
         {
             return;
@@ -1167,6 +1196,23 @@ public class PianoRollPanel : FrameworkElement
         CaptureMouse();
         SeekDragStarted?.Invoke(this, new PianoRollSeekEventArgs(_seekDragStartTime));
         e.Handled = true;
+    }
+
+    internal bool TryActivateMarker(Point point)
+    {
+        if (IsPlaying)
+        {
+            return false;
+        }
+        foreach (var (bounds, marker) in _markerHits)
+        {
+            if (bounds.Contains(point))
+            {
+                MarkerClicked?.Invoke(this, marker.AbsoluteTick);
+                return true;
+            }
+        }
+        return false;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -1226,7 +1272,7 @@ public class PianoRollPanel : FrameworkElement
     {
         if (_lanes.Count == 0)
         {
-            return GetLyricsLaneHeight();
+            return TimelineHeight + GetLyricsLaneHeight();
         }
 
         var total = 0.0;
@@ -1236,7 +1282,7 @@ public class PianoRollPanel : FrameworkElement
         }
 
         total += (_lanes.Count - 1) * PianoRollSettings.LaneGap;
-        return total + GetLyricsLaneHeight();
+        return total + TimelineHeight + GetLyricsLaneHeight();
     }
 
     private (int Low, int High) GetLanePitchRange(List<PairedNote> notes)
@@ -1347,7 +1393,7 @@ public class PianoRollPanel : FrameworkElement
     private void RebuildLanes()
     {
         _lanes.Clear();
-        var lyricsOffset = GetLyricsLaneHeight();
+        var lyricsOffset = TimelineHeight + GetLyricsLaneHeight();
 
         if (OverlayMode)
         {
@@ -1556,6 +1602,18 @@ public class PianoRollPanel : FrameworkElement
 
     #region Rendering
 
+    protected override HitTestResult? HitTestCore(PointHitTestParameters hitTestParameters)
+    {
+        var point = hitTestParameters.HitPoint;
+        if (point.X >= PianoRollSettings.LaneHeaderWidth && point.X < ActualWidth &&
+            point.Y >= 0 && point.Y < TimelineHeight)
+        {
+            return new PointHitTestResult(this, point);
+        }
+
+        return base.HitTestCore(hitTestParameters);
+    }
+
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
@@ -1645,15 +1703,14 @@ public class PianoRollPanel : FrameworkElement
     private void RenderGrid()
     {
         using var dc = _gridVisual.RenderOpen();
+        _markerHits.Clear();
 
-        if (!ShowBarsBeatsGrid)
+        var viewWidth = ActualWidth - PianoRollSettings.LaneHeaderWidth;
+        if (viewWidth <= 0)
         {
-            // Clear the visual by just opening and closing the context
             return;
         }
 
-        var viewWidth = ActualWidth - PianoRollSettings.LaneHeaderWidth;
-        var playheadX = PianoRollSettings.LaneHeaderWidth + viewWidth * PianoRollSettings.PlayheadPosition;
         var pixelsPerSecond = viewWidth / WindowSeconds;
 
         // Time at left edge of view
@@ -1661,20 +1718,15 @@ public class PianoRollPanel : FrameworkElement
         var rightTime = leftTime + WindowSeconds;
 
         GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
-        var contentTop = Math.Max(visibleTop, GetLyricsLaneHeight());
+        var contentTop = Math.Max(visibleTop, TimelineHeight + GetLyricsLaneHeight());
 
-        // Draw vertical time grid lines (every second for now, adjust based on zoom)
-        var gridInterval = CalculateGridInterval(pixelsPerSecond);
-        var startSecond = Math.Floor(leftTime / gridInterval) * gridInterval;
-
-        for (var t = startSecond; t <= rightTime; t += gridInterval)
+        if (_timelineTempoMap is { } map)
         {
-            if (t < 0) continue;
-
-            var x = PianoRollSettings.LaneHeaderWidth + (t - leftTime) * pixelsPerSecond;
-            if (x < PianoRollSettings.LaneHeaderWidth || x > ActualWidth) continue;
-
-            dc.DrawLine(ThemedGridPen, new Point(x, contentTop), new Point(x, visibleBottom));
+            RenderTimeline(dc, map, leftTime, rightTime, pixelsPerSecond, contentTop, visibleBottom);
+        }
+        if (!ShowBarsBeatsGrid)
+        {
+            return;
         }
 
         var clipped = TryGetContentClipRect(out var clipRect);
@@ -1698,6 +1750,89 @@ public class PianoRollPanel : FrameworkElement
             dc.Pop();
         }
     }
+
+    private void RenderTimeline(DrawingContext dc, TempoMap map, double left, double right, double scale,
+        double gridTop, double gridBottom)
+    {
+        const double header = PianoRollSettings.LaneHeaderWidth;
+        dc.DrawRectangle(ThemedLyricsLaneBrush, null, new Rect(header, 0, ActualWidth - header, RulerHeight));
+        dc.PushClip(new RectangleGeometry(new Rect(header, 0, ActualWidth - header, Math.Max(gridBottom, RulerHeight))));
+        var end = Math.Min(right, TotalDuration.TotalSeconds);
+        if (end >= Math.Max(0, left))
+        {
+            var firstBar = TimeConverter.ConvertTo<BarBeatTicksTimeSpan>(
+                new MetricTimeSpan(TimeSpan.FromSeconds(Math.Max(0, left))), map).Bars;
+            var lastBar = TimeConverter.ConvertTo<BarBeatTicksTimeSpan>(
+                new MetricTimeSpan(TimeSpan.FromSeconds(end)), map).Bars;
+            var barStep = Math.Max(1, (long)Math.Ceiling((lastBar - firstBar + 1) / Math.Max(1, (ActualWidth - header) / 45)));
+            var nextLabelX = header;
+            double GetX(ITimeSpan position) => header +
+                (TimeConverter.ConvertTo<MetricTimeSpan>(position, map).TotalMicroseconds / 1_000_000.0 - left) * scale;
+
+            for (var bar = firstBar - firstBar % barStep; bar <= lastBar; bar += barStep)
+            {
+                var start = new BarBeatTicksTimeSpan(bar);
+                var x = GetX(start);
+                if (x >= header && x < ActualWidth)
+                {
+                    dc.DrawLine(ThemedOctaveGridPen, new Point(x, 0), new Point(x, 19));
+                    if (ShowBarsBeatsGrid && gridBottom > gridTop)
+                    {
+                        dc.DrawLine(ThemedOctaveGridPen, new Point(x, gridTop), new Point(x, gridBottom));
+                    }
+                    if (x >= nextLabelX)
+                    {
+                        var label = CreateRulerText((bar + 1).ToString(System.Globalization.CultureInfo.CurrentCulture), 11);
+                        dc.DrawText(label, new Point(x + 3, 2));
+                        nextLabelX = x + label.Width + 12;
+                    }
+                }
+
+                var nextBarX = GetX(new BarBeatTicksTimeSpan(bar + 1));
+                if (barStep == 1 && nextBarX - x >= 80)
+                {
+                    var tick = TimeConverter.ConvertFrom(start, map);
+                    var beats = map.GetTimeSignatureAtTime(new MidiTimeSpan(tick)).Numerator;
+                    for (var beat = 1; beat < beats; beat++)
+                    {
+                        var bx = GetX(new BarBeatTicksTimeSpan(bar, beat));
+                        if (bx >= header && bx < Math.Min(ActualWidth, nextBarX))
+                        {
+                            dc.DrawLine(ThemedGridPen, new Point(bx, 12), new Point(bx, 19));
+                            if (ShowBarsBeatsGrid && gridBottom > gridTop)
+                            {
+                                dc.DrawLine(ThemedGridPen, new Point(bx, gridTop), new Point(bx, gridBottom));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        var availableX = header;
+        foreach (var marker in _timelineMarkers)
+        {
+            var x = header + (marker.Time.TotalSeconds - left) * scale;
+            if (x >= ActualWidth) break;
+            if (x < availableX) continue;
+
+                var label = marker.TextContent;
+                var text = CreateRulerText(string.IsNullOrWhiteSpace(label) ? "Marker" : label, 11);
+            text.MaxTextWidth = Math.Max(1, Math.Min(150, ActualWidth - x - 6));
+            text.MaxLineCount = 1;
+            text.Trimming = TextTrimming.CharacterEllipsis;
+            var bounds = new Rect(x, 21, Math.Min(ActualWidth - x, text.Width + 10), 19);
+            dc.DrawRoundedRectangle(ThemedLaneHeaderBrush, ThemedOctaveGridPen, bounds, 3, 3);
+            dc.DrawText(text, new Point(x + 5, 23));
+            _markerHits.Add((bounds, marker));
+            availableX = bounds.Right + 4;
+        }
+        dc.Pop();
+    }
+
+    private FormattedText CreateRulerText(string text, double size) =>
+        new(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+            LyricsTypeface, size, ThemedLyricsTextBrush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
     private void RenderPitchGrid(DrawingContext dc, LaneLayout lane)
     {
@@ -1731,7 +1866,7 @@ public class PianoRollPanel : FrameworkElement
         var rightTime = leftTime + WindowSeconds;
 
         GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
-        visibleTop = Math.Max(visibleTop, GetLyricsLaneHeight());
+        visibleTop = Math.Max(visibleTop, TimelineHeight + GetLyricsLaneHeight());
 
         var clipped = TryGetContentClipRect(out var clipRect);
         if (clipped)
@@ -1899,6 +2034,7 @@ public class PianoRollPanel : FrameworkElement
             return;
         }
 
+        dc.PushTransform(new TranslateTransform(0, TimelineHeight));
         var rect = new Rect(0, 0, ActualWidth, laneHeight);
         dc.DrawRectangle(ThemedLyricsLaneBrush, null, rect);
         dc.DrawLine(ThemedLyricsSeparatorPen, new Point(0, laneHeight), new Point(ActualWidth, laneHeight));
@@ -2530,7 +2666,7 @@ public class PianoRollPanel : FrameworkElement
     private void RenderOverlayTrackList(DrawingContext dc, double headerRight)
     {
         GetVisibleVerticalRange(out var visibleTop, out var visibleBottom);
-        var lyricsHeight = GetLyricsLaneHeight();
+        var lyricsHeight = TimelineHeight + GetLyricsLaneHeight();
         if (lyricsHeight > 0)
         {
             visibleTop = Math.Max(visibleTop, lyricsHeight);

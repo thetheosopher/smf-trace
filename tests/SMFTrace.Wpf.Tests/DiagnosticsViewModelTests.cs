@@ -186,6 +186,19 @@ public class DiagnosticsViewModelTests
     }
 
     [Fact]
+    public void FilteringOutSelectedEventClearsTheSelection()
+    {
+        var vm = new DiagnosticsViewModel();
+        vm.LoadEvents([CreateNoteOn(0, 0), CreateCC(100, 0, 7, 100)]);
+        vm.SelectedEvent = vm.FilteredEvents[0];
+
+        vm.ShowNotes = false;
+
+        Assert.Null(vm.SelectedEvent);
+        Assert.False(vm.HasSelection);
+    }
+
+    [Fact]
     public void DetailTextShowsEventInfo()
     {
         // Arrange
@@ -225,6 +238,68 @@ public class DiagnosticsViewModelTests
         // Assert
         Assert.Equal(2, vm.FilteredEvents.Count);
         Assert.Same(firstReference, vm.FilteredEvents[0]);
+    }
+
+    [Fact]
+    public void FollowPlaybackSelectsLastEventAtOrBeforeTick()
+    {
+        var vm = new DiagnosticsViewModel();
+        vm.LoadEvents([
+            CreateNoteOn(0, 0),
+            CreateNoteOn(100, 0),
+            CreateCC(100, 0, 7, 100),
+            CreateNoteOn(200, 0)
+        ]);
+        vm.FollowPlayback = true;
+
+        vm.UpdatePlaybackPosition(150);
+
+        Assert.Same(vm.FilteredEvents[2], vm.SelectedEvent);
+    }
+
+    [Fact]
+    public void FollowPlaybackSelectsLatestVisibleEventWhenFiltersChange()
+    {
+        var vm = new DiagnosticsViewModel();
+        vm.LoadEvents([
+            CreateNoteOn(0, 0),
+            CreateCC(100, 0, 7, 100),
+            CreateNoteOn(200, 0)
+        ]);
+        vm.FollowPlayback = true;
+        vm.UpdatePlaybackPosition(150);
+
+        vm.ShowControlChanges = false;
+
+        Assert.Equal(0, vm.SelectedEvent?.Tick);
+    }
+
+    [Fact]
+    public void FollowPlaybackHighlightsAllEventsAtLatestReachedTickUntilNextEvent()
+    {
+        var vm = new DiagnosticsViewModel();
+        vm.LoadEvents([
+            CreateNoteOn(0, 0),
+            CreateNoteOn(100, 0),
+            CreateCC(100, 0, 7, 100),
+            CreateNoteOn(200, 0)
+        ]);
+        vm.FollowPlayback = true;
+
+        vm.UpdatePlaybackPosition(150);
+
+        Assert.False(vm.FilteredEvents[0].IsPlaybackActive);
+        Assert.True(vm.FilteredEvents[1].IsPlaybackActive);
+        Assert.True(vm.FilteredEvents[2].IsPlaybackActive);
+        Assert.False(vm.FilteredEvents[3].IsPlaybackActive);
+        Assert.Equal([vm.FilteredEvents[1], vm.FilteredEvents[2]], vm.PlaybackActiveEvents);
+
+        vm.UpdatePlaybackPosition(200);
+
+        Assert.False(vm.FilteredEvents[1].IsPlaybackActive);
+        Assert.False(vm.FilteredEvents[2].IsPlaybackActive);
+        Assert.True(vm.FilteredEvents[3].IsPlaybackActive);
+        Assert.Equal([vm.FilteredEvents[3]], vm.PlaybackActiveEvents);
     }
 
 }
